@@ -3,9 +3,8 @@
   "name": "Solarized",
   "id": "solarized",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fdf6e3",
-      "ink": "#586e75",
       "primary": "#268bd2",
       "accent": "#d33682",
       "success": "#859900",
@@ -25,9 +24,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#002b36",
-      "ink": "#93a1a1",
       "primary": "#6c71c4",
       "accent": "#d33682",
       "success": "#859900",

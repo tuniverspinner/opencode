@@ -3,9 +3,8 @@
   "name": "Carbonfox",
   "id": "carbonfox",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#8e8e8e",
-      "ink": "#161616",
       "primary": "#0072c3",
       "accent": "#da1e28",
       "success": "#198038",
@@ -27,9 +26,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#393939",
-      "ink": "#f2f4f8",
       "primary": "#33b1ff",
       "accent": "#ff8389",
       "success": "#42be65",

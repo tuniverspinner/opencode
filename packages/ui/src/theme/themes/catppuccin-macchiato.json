@@ -3,9 +3,8 @@
   "name": "Catppuccin Macchiato",
   "id": "catppuccin-macchiato",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#24273a",
-      "ink": "#cad3f5",
       "primary": "#8aadf4",
       "accent": "#f5bde6",
       "success": "#a6da95",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#24273a",
-      "ink": "#cad3f5",
       "primary": "#8aadf4",
       "accent": "#f5bde6",
       "success": "#a6da95",

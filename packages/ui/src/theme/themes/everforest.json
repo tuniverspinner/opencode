@@ -3,9 +3,8 @@
   "name": "Everforest",
   "id": "everforest",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fdf6e3",
-      "ink": "#5c6a72",
       "primary": "#8da101",
       "accent": "#df69ba",
       "success": "#8da101",
@@ -45,9 +44,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#2d353b",
-      "ink": "#d3c6aa",
       "primary": "#a7c080",
       "accent": "#d699b6",
       "success": "#a7c080",

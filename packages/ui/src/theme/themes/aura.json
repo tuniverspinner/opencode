@@ -3,9 +3,8 @@
   "name": "Aura",
   "id": "aura",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f5f0ff",
-      "ink": "#2d2640",
       "primary": "#a277ff",
       "accent": "#d94f4f",
       "success": "#40bf7a",
@@ -26,9 +25,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#15141b",
-      "ink": "#edecee",
       "primary": "#a277ff",
       "accent": "#ff6767",
       "success": "#61ffca",

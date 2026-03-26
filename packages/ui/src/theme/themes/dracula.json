@@ -3,9 +3,8 @@
   "name": "Dracula",
   "id": "dracula",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f8f8f2",
-      "ink": "#1f1f2f",
       "primary": "#7c6bf5",
       "accent": "#d16090",
       "success": "#2fbf71",
@@ -25,9 +24,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1d1e28",
-      "ink": "#f8f8f2",
       "primary": "#bd93f9",
       "accent": "#ff79c6",
       "success": "#50fa7b",

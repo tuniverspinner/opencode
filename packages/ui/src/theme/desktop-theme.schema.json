@@ -41,9 +41,9 @@
     },
     "ThemeSeedColors": {
       "type": "object",
-      "description": "The legacy semantic seed set used to generate a theme",
+      "description": "The semantic seed set used to generate a theme",
       "additionalProperties": false,
-      "required": ["neutral", "primary", "success", "warning", "error", "info", "interactive", "diffAdd", "diffDelete"],
+      "required": ["neutral", "primary", "success", "warning", "error", "info"],
       "properties": {
         "neutral": {
           "$ref": "#/definitions/HexColor",
@@ -69,65 +69,17 @@
           "$ref": "#/definitions/HexColor",
           "description": "Informational state color (typically purple/blue)"
         },
-        "interactive": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Interactive element color (links, buttons)"
-        },
-        "diffAdd": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Color for diff additions"
-        },
-        "diffDelete": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Color for diff deletions"
-        }
-      }
-    },
-    "ThemePaletteColors": {
-      "type": "object",
-      "description": "A compact semantic palette used to derive the full theme programmatically",
-      "additionalProperties": false,
-      "required": ["neutral", "ink", "primary", "success", "warning", "error", "info"],
-      "properties": {
-        "neutral": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Base neutral color for generating the gray scale"
-        },
-        "ink": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Foreground or chrome color used to derive text and border tones"
-        },
-        "primary": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Primary brand color used for brand surfaces and strong emphasis"
-        },
-        "success": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Success state color"
-        },
-        "warning": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Warning state color"
-        },
-        "error": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Error or critical state color"
-        },
-        "info": {
-          "$ref": "#/definitions/HexColor",
-          "description": "Informational state color"
-        },
         "accent": {
           "$ref": "#/definitions/HexColor",
-          "description": "Optional extra expressive accent for syntax and rich content"
+          "description": "Optional expressive accent seed used for syntax and prose emphasis"
         },
         "interactive": {
           "$ref": "#/definitions/HexColor",
-          "description": "Optional dedicated interactive color; falls back to primary"
+          "description": "Optional interactive element seed; falls back to primary"
         },
         "diffAdd": {
           "$ref": "#/definitions/HexColor",
-          "description": "Optional diff-add seed; falls back to a softened success color"
+          "description": "Optional diff-add seed; falls back to success"
         },
         "diffDelete": {
           "$ref": "#/definitions/HexColor",
@@ -137,16 +89,12 @@
     },
     "ThemeVariant": {
       "type": "object",
-      "description": "A theme variant (light or dark) with either a compact palette or legacy seeds and optional overrides",
-      "oneOf": [{ "required": ["seeds"] }, { "required": ["palette"] }],
+      "description": "A theme variant generated from seed colors with optional token overrides",
+      "required": ["seeds"],
       "properties": {
         "seeds": {
           "$ref": "#/definitions/ThemeSeedColors",
-          "description": "Legacy seed colors used to generate the full palette"
-        },
-        "palette": {
-          "$ref": "#/definitions/ThemePaletteColors",
-          "description": "Compact palette used to derive the full token set"
+          "description": "Seed colors used to generate the full token set"
         },
         "overrides": {
           "type": "object",

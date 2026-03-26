@@ -3,9 +3,8 @@
   "name": "Material",
   "id": "material",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fafafa",
-      "ink": "#263238",
       "primary": "#6182b8",
       "accent": "#39adb5",
       "success": "#91b859",
@@ -44,9 +43,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#263238",
-      "ink": "#eeffff",
       "primary": "#82aaff",
       "accent": "#89ddff",
       "success": "#c3e88d",

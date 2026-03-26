@@ -3,9 +3,8 @@
   "name": "Ayu",
   "id": "ayu",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fdfaf4",
-      "ink": "#4f5964",
       "primary": "#4aa8c8",
       "accent": "#ef7d71",
       "success": "#5fb978",
@@ -26,9 +25,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#0f1419",
-      "ink": "#d6dae0",
       "primary": "#3fb7e3",
       "accent": "#f2856f",
       "success": "#78d05c",

@@ -1,6 +1,5 @@
 export type {
   DesktopTheme,
-  ThemePaletteColors,
   ThemeSeedColors,
   ThemeVariant,
   HexColor,

@@ -3,9 +3,8 @@
   "name": "AMOLED",
   "id": "amoled",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f0f0f0",
-      "ink": "#0a0a0a",
       "primary": "#6200ff",
       "accent": "#ff0080",
       "success": "#00e676",
@@ -25,9 +24,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#000000",
-      "ink": "#ffffff",
       "primary": "#b388ff",
       "accent": "#ff4081",
       "success": "#00ff88",

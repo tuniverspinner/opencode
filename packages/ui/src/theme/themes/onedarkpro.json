@@ -3,9 +3,8 @@
   "name": "One Dark Pro",
   "id": "onedarkpro",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f5f6f8",
-      "ink": "#2b303b",
       "primary": "#528bff",
       "accent": "#d85462",
       "success": "#4fa66d",
@@ -23,9 +22,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1e222a",
-      "ink": "#abb2bf",
       "primary": "#61afef",
       "accent": "#e06c75",
       "success": "#98c379",

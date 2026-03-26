@@ -3,9 +3,8 @@
   "name": "OpenCode",
   "id": "opencode",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#ffffff",
-      "ink": "#1a1a1a",
       "primary": "#3b7dd8",
       "accent": "#d68c27",
       "success": "#3d9a57",
@@ -45,9 +44,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#0a0a0a",
-      "ink": "#eeeeee",
       "primary": "#fab283",
       "accent": "#9d7cd8",
       "success": "#7fd88f",

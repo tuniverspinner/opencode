@@ -3,9 +3,8 @@
   "name": "Shades of Purple",
   "id": "shadesofpurple",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f7ebff",
-      "ink": "#3b2c59",
       "primary": "#7a5af8",
       "accent": "#ff6bd5",
       "success": "#3dd598",
@@ -26,9 +25,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1a102b",
-      "ink": "#f5f0ff",
       "primary": "#c792ff",
       "accent": "#ff7ac6",
       "success": "#7be0b0",

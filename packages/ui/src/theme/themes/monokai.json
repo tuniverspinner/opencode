@@ -3,9 +3,8 @@
   "name": "Monokai",
   "id": "monokai",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fdf8ec",
-      "ink": "#292318",
       "primary": "#bf7bff",
       "accent": "#d9487c",
       "success": "#4fb54b",
@@ -25,9 +24,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#272822",
-      "ink": "#f8f8f2",
       "primary": "#ae81ff",
       "accent": "#f92672",
       "success": "#a6e22e",

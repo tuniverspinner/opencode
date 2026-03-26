@@ -3,9 +3,8 @@
   "name": "Catppuccin",
   "id": "catppuccin",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#f5e0dc",
-      "ink": "#4c4f69",
       "primary": "#7287fd",
       "accent": "#d20f39",
       "success": "#40a02b",
@@ -23,9 +22,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1e1e2e",
-      "ink": "#cdd6f4",
       "primary": "#b4befe",
       "accent": "#f38ba8",
       "success": "#a6d189",

@@ -3,9 +3,8 @@
   "name": "Rose Pine",
   "id": "rosepine",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#faf4ed",
-      "ink": "#575279",
       "primary": "#31748f",
       "accent": "#d7827e",
       "success": "#286983",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#191724",
-      "ink": "#e0def4",
       "primary": "#9ccfd8",
       "accent": "#ebbcba",
       "success": "#31748f",

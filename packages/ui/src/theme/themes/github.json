@@ -3,9 +3,8 @@
   "name": "GitHub",
   "id": "github",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#ffffff",
-      "ink": "#24292f",
       "primary": "#0969da",
       "accent": "#1b7c83",
       "success": "#1a7f37",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#0d1117",
-      "ink": "#c9d1d9",
       "primary": "#58a6ff",
       "accent": "#39c5cf",
       "success": "#3fb950",

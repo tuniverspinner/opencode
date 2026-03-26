@@ -3,9 +3,8 @@
   "name": "Orng",
   "id": "orng",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#ffffff",
-      "ink": "#1a1a1a",
       "primary": "#EC5B2B",
       "accent": "#c94d24",
       "success": "#0062d1",
@@ -44,9 +43,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#0a0a0a",
-      "ink": "#eeeeee",
       "primary": "#EC5B2B",
       "accent": "#FFF7F1",
       "success": "#6ba1e6",

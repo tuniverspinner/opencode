@@ -3,9 +3,8 @@
   "name": "Catppuccin Frappe",
   "id": "catppuccin-frappe",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#303446",
-      "ink": "#c6d0f5",
       "primary": "#8da4e2",
       "accent": "#f4b8e4",
       "success": "#a6d189",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#303446",
-      "ink": "#c6d0f5",
       "primary": "#8da4e2",
       "accent": "#f4b8e4",
       "success": "#a6d189",

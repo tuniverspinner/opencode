@@ -3,9 +3,8 @@
   "name": "Tokyonight",
   "id": "tokyonight",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#e1e2e7",
-      "ink": "#273153",
       "primary": "#2e7de9",
       "accent": "#b15c00",
       "success": "#587539",
@@ -24,9 +23,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1a1b26",
-      "ink": "#c0caf5",
       "primary": "#7aa2f7",
       "accent": "#ff9e64",
       "success": "#9ece6a",

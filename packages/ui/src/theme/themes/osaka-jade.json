@@ -3,9 +3,8 @@
   "name": "Osaka Jade",
   "id": "osaka-jade",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#F6F5DD",
-      "ink": "#111c18",
       "primary": "#1faa90",
       "accent": "#3d7a52",
       "success": "#3d7a52",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#111c18",
-      "ink": "#C1C497",
       "primary": "#2DD5B7",
       "accent": "#549e6a",
       "success": "#549e6a",

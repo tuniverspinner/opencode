@@ -3,9 +3,8 @@
   "name": "Vesper",
   "id": "vesper",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#F0F0F0",
-      "ink": "#101010",
       "primary": "#FFC799",
       "accent": "#B30000",
       "success": "#99FFE4",
@@ -26,9 +25,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#101010",
-      "ink": "#FFF",
       "primary": "#FFC799",
       "accent": "#FF8080",
       "success": "#99FFE4",

@@ -3,9 +3,8 @@
   "name": "Zenburn",
   "id": "zenburn",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#ffffef",
-      "ink": "#3f3f3f",
       "primary": "#5f7f8f",
       "accent": "#5f8f8f",
       "success": "#5f8f5f",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#3f3f3f",
-      "ink": "#dcdccc",
       "primary": "#8cd0d3",
       "accent": "#93e0e3",
       "success": "#7f9f7f",

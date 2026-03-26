@@ -3,9 +3,8 @@
   "name": "Vercel",
   "id": "vercel",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#FFFFFF",
-      "ink": "#171717",
       "primary": "#0070F3",
       "accent": "#8E4EC6",
       "success": "#388E3C",
@@ -45,9 +44,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#000000",
-      "ink": "#EDEDED",
       "primary": "#0070F3",
       "accent": "#8E4EC6",
       "success": "#46A758",

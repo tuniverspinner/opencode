@@ -3,9 +3,8 @@
   "name": "Kanagawa",
   "id": "kanagawa",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#F2E9DE",
-      "ink": "#54433A",
       "primary": "#2D4F67",
       "accent": "#D27E99",
       "success": "#98BB6C",
@@ -45,9 +44,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#1F1F28",
-      "ink": "#DCD7BA",
       "primary": "#7E9CD8",
       "accent": "#D27E99",
       "success": "#98BB6C",

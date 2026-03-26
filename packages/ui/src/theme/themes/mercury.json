@@ -3,9 +3,8 @@
   "name": "Mercury",
   "id": "mercury",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#ffffff",
-      "ink": "#363644",
       "primary": "#5266eb",
       "accent": "#8da4f5",
       "success": "#036e43",
@@ -44,9 +43,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#171721",
-      "ink": "#dddde5",
       "primary": "#8da4f5",
       "accent": "#8da4f5",
       "success": "#77c599",

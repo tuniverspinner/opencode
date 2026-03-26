@@ -3,9 +3,8 @@
   "name": "One Dark",
   "id": "one-dark",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#fafafa",
-      "ink": "#383a42",
       "primary": "#4078f2",
       "accent": "#0184bc",
       "success": "#50a14f",
@@ -45,9 +44,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#282c34",
-      "ink": "#abb2bf",
       "primary": "#61afef",
       "accent": "#56b6c2",
       "success": "#98c379",

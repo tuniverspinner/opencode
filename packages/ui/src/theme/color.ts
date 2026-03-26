@@ -100,6 +100,15 @@ export function hexToOklch(hex: HexColor): OklchColor {
   return rgbToOklch(r, g, b)
 }
 
+function mix(a: OklchColor, b: OklchColor, t: number): OklchColor {
+  const delta = ((((b.h - a.h) % 360) + 540) % 360) - 180
+  return {
+    l: a.l + (b.l - a.l) * t,
+    c: a.c + (b.c - a.c) * t,
+    h: a.h + delta * t,
+  }
+}
+
 export function fitOklch(oklch: OklchColor): OklchColor {
   const base = {
     l: clamp(oklch.l, 0, 1),
@@ -132,87 +141,46 @@ export function oklchToHex(oklch: OklchColor): HexColor {
 
 export function generateScale(seed: HexColor, isDark: boolean): HexColor[] {
   const base = hexToOklch(seed)
-  const scale: HexColor[] = []
+  const tint = isDark
+    ? [0.032, 0.07, 0.118, 0.184, 0.274, 0.392, 0.548, 0.748]
+    : [0.018, 0.042, 0.082, 0.146, 0.238, 0.368, 0.542, 0.764]
+  const shade = isDark ? [0, 0.122, 0.548, 0.892] : [0, 0.124, 0.514, 0.83]
+  const mid = fitOklch({
+    l: clamp(base.l, isDark ? 0.62 : 0.5, isDark ? 0.76 : 0.68),
+    c: clamp(base.c, 0, isDark ? 0.26 : 0.24),
+    h: base.h,
+  })
+  const bg = fitOklch({
+    l: isDark ? clamp(0.15 + base.c * 0.08, 0.13, 0.2) : clamp(0.995 - base.c * 0.1, 0.962, 0.995),
+    c: Math.min(base.c * (isDark ? 0.3 : 0.14), isDark ? 0.045 : 0.02),
+    h: base.h,
+  })
+  const fg = fitOklch({
+    l: isDark ? 0.956 : 0.24,
+    c: Math.min(mid.c * (isDark ? 0.34 : 0.62), isDark ? 0.08 : 0.12),
+    h: base.h,
+  })
 
-  const lightSteps = isDark
-    ? [
-        0.118,
-        0.138,
-        0.167,
-        0.202,
-        0.246,
-        0.304,
-        0.378,
-        0.468,
-        clamp(base.l * 0.825, 0.53, 0.705),
-        clamp(base.l * 0.89, 0.61, 0.79),
-        clamp(base.l + 0.033, 0.868, 0.943),
-        0.984,
-      ]
-    : [0.993, 0.983, 0.962, 0.936, 0.906, 0.866, 0.811, 0.74, base.l, Math.max(0, base.l - 0.036), 0.49, 0.27]
-
-  const chromaMultipliers = isDark
-    ? [0.52, 0.68, 0.86, 1.02, 1.14, 1.24, 1.36, 1.48, 1.56, 1.64, 1.62, 1.15]
-    : [0.12, 0.24, 0.46, 0.68, 0.84, 0.98, 1.08, 1.16, 1.22, 1.26, 1.18, 0.98]
-
-  for (let i = 0; i < 12; i++) {
-    scale.push(
-      oklchToHex({
-        l: lightSteps[i],
-        c: base.c * chromaMultipliers[i],
-        h: base.h,
-      }),
-    )
-  }
-
-  return scale
+  return [...tint.map((step) => oklchToHex(mix(bg, mid, step))), ...shade.map((step) => oklchToHex(mix(mid, fg, step)))]
 }
 
-export function generateNeutralScale(seed: HexColor, isDark: boolean, ink?: HexColor): HexColor[] {
-  if (ink) {
-    const base = hexToOklch(seed)
-    const lift = (tone: number) =>
-      oklchToHex({
-        l: base.l + (1 - base.l) * tone,
-        c: base.c * Math.max(0, 1 - tone),
-        h: base.h,
-      })
-    const sink = (tone: number) =>
-      oklchToHex({
-        l: base.l * (1 - tone),
-        c: base.c * Math.max(0, 1 - tone * (isDark ? 0.12 : 0.3)),
-        h: base.h,
-      })
-    const bg = isDark
-      ? sink(clamp(0.19 + Math.max(0, base.l - 0.12) * 0.33 + base.c * 1.95, 0.17, 0.27))
-      : base.l < 0.82
-        ? lift(0.86)
-        : lift(clamp(0.1 + base.c * 3.2 + Math.max(0, 0.95 - base.l) * 0.35, 0.1, 0.28))
-    const steps = isDark
-      ? [0, 0.018, 0.039, 0.064, 0.097, 0.143, 0.212, 0.31, 0.46, 0.649, 0.845, 0.984]
-      : [0, 0.022, 0.042, 0.068, 0.102, 0.146, 0.208, 0.296, 0.432, 0.61, 0.81, 0.965]
-    return steps.map((step) => mixColors(bg, ink, step))
-  }
-
+export function generateNeutralScale(seed: HexColor, isDark: boolean): HexColor[] {
   const base = hexToOklch(seed)
-  const scale: HexColor[] = []
-  const neutralChroma = Math.min(base.c, isDark ? 0.068 : 0.04)
+  const stop = isDark
+    ? [0, 0.022, 0.05, 0.092, 0.15, 0.228, 0.332, 0.468, 0.636, 0.782, 0.892, 0.978]
+    : [0, 0.016, 0.036, 0.064, 0.104, 0.158, 0.23, 0.336, 0.486, 0.668, 0.822, 0.984]
+  const bg = fitOklch({
+    l: clamp(base.l, isDark ? 0.11 : 0.965, isDark ? 0.22 : 0.995),
+    c: Math.min(base.c, isDark ? 0.028 : 0.016),
+    h: base.h,
+  })
+  const fg = fitOklch({
+    l: isDark ? 0.956 : 0.18,
+    c: Math.min(base.c * (isDark ? 0.42 : 0.46), 0.03),
+    h: base.h,
+  })
 
-  const lightSteps = isDark
-    ? [0.138, 0.156, 0.178, 0.202, 0.232, 0.272, 0.326, 0.404, clamp(base.l * 0.83, 0.43, 0.55), 0.596, 0.719, 0.956]
-    : [0.991, 0.979, 0.964, 0.946, 0.931, 0.913, 0.891, 0.83, base.l, 0.617, 0.542, 0.205]
-
-  for (let i = 0; i < 12; i++) {
-    scale.push(
-      oklchToHex({
-        l: lightSteps[i],
-        c: neutralChroma,
-        h: base.h,
-      }),
-    )
-  }
-
-  return scale
+  return stop.map((step) => oklchToHex(mix(bg, fg, step)))
 }
 
 export function generateAlphaScale(scale: HexColor[], isDark: boolean): HexColor[] {
@@ -234,15 +202,7 @@ export function generateAlphaScale(scale: HexColor[], isDark: boolean): HexColor
 }
 
 export function mixColors(color1: HexColor, color2: HexColor, amount: number): HexColor {
-  const c1 = hexToOklch(color1)
-  const c2 = hexToOklch(color2)
-  const delta = ((((c2.h - c1.h) % 360) + 540) % 360) - 180
-
-  return oklchToHex({
-    l: c1.l + (c2.l - c1.l) * amount,
-    c: c1.c + (c2.c - c1.c) * amount,
-    h: c1.h + delta * amount,
-  })
+  return oklchToHex(mix(hexToOklch(color1), hexToOklch(color2), amount))
 }
 
 export function shift(color: HexColor, value: { l?: number; c?: number; h?: number }): HexColor {

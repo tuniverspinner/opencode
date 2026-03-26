@@ -3,9 +3,8 @@
   "name": "Flexoki",
   "id": "flexoki",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#FFFCF0",
-      "ink": "#100F0F",
       "primary": "#205EA6",
       "accent": "#BC5215",
       "success": "#66800B",
@@ -43,9 +42,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#100F0F",
-      "ink": "#CECDC3",
       "primary": "#DA702C",
       "accent": "#8B7EC8",
       "success": "#879A39",

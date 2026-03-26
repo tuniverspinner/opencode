@@ -3,9 +3,8 @@
   "name": "Matrix",
   "id": "matrix",
   "light": {
-    "palette": {
+    "seeds": {
       "neutral": "#eef3ea",
-      "ink": "#203022",
       "primary": "#1cc24b",
       "accent": "#c770ff",
       "success": "#1cc24b",
@@ -46,9 +45,8 @@
     }
   },
   "dark": {
-    "palette": {
+    "seeds": {
       "neutral": "#0a0e0a",
-      "ink": "#62ff94",
       "primary": "#2eff6a",
       "accent": "#c770ff",
       "success": "#62ff94",
