@@ -233,7 +233,6 @@ export const Terminal = (props: TerminalProps) => {
     const currentTheme = theme.themes()[theme.themeId()]
     if (!currentTheme) return fallback
     const variant = mode === "dark" ? currentTheme.dark : currentTheme.light
-    if (!variant?.seeds && !variant?.palette) return fallback
     const resolved = resolveThemeVariant(variant, mode === "dark")
     const text = resolved["text-stronger"] ?? fallback.foreground
     const background = resolved["background-stronger"] ?? fallback.background
