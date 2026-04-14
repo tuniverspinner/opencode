@@ -161,12 +161,12 @@ export namespace Question {
         log.info("asking", { id, questions: input.questions.length })
 
         const deferred = yield* Deferred.make<ReadonlyArray<Answer>, RejectedError>()
-        const info: Request = {
+        const info = Schema.decodeUnknownSync(Request)({
           id,
           sessionID: input.sessionID,
           questions: input.questions,
           tool: input.tool,
-        }
+        })
         pending.set(id, { info, deferred })
         yield* bus.publish(Event.Asked, info)
 
