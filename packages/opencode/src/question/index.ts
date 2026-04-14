@@ -12,16 +12,16 @@ export namespace Question {
 
   // Schemas
 
-  const _Option = Schema.Struct({
+  export class Option extends Schema.Class<Option>("QuestionOption")({
     label: Schema.String.annotate({
       description: "Display text (1-5 words, concise)",
     }),
     description: Schema.String.annotate({
       description: "Explanation of choice",
     }),
-  }).annotate({ identifier: "QuestionOption" })
-  export const Option = Object.assign(_Option, { zod: zod(_Option) })
-  export type Option = Schema.Schema.Type<typeof _Option>
+  }) {
+    static readonly zod = zod(this)
+  }
 
   const base = {
     question: Schema.String.annotate({
@@ -38,64 +38,64 @@ export namespace Question {
     }),
   }
 
-  const _Info = Schema.Struct({
+  export class Info extends Schema.Class<Info>("QuestionInfo")({
     ...base,
     custom: Schema.optional(Schema.Boolean).annotate({
       description: "Allow typing a custom answer (default: true)",
     }),
-  }).annotate({ identifier: "QuestionInfo" })
-  export const Info = Object.assign(_Info, { zod: zod(_Info) })
-  export type Info = Schema.Schema.Type<typeof _Info>
+  }) {
+    static readonly zod = zod(this)
+  }
 
-  const _Prompt = Schema.Struct(base).annotate({ identifier: "QuestionPrompt" })
-  export const Prompt = Object.assign(_Prompt, { zod: zod(_Prompt) })
-  export type Prompt = Schema.Schema.Type<typeof _Prompt>
+  export class Prompt extends Schema.Class<Prompt>("QuestionPrompt")(base) {
+    static readonly zod = zod(this)
+  }
 
-  const _Tool = Schema.Struct({
+  export class Tool extends Schema.Class<Tool>("QuestionTool")({
     messageID: MessageID,
     callID: Schema.String,
-  }).annotate({ identifier: "QuestionTool" })
-  export const Tool = Object.assign(_Tool, { zod: zod(_Tool) })
-  export type Tool = Schema.Schema.Type<typeof _Tool>
+  }) {
+    static readonly zod = zod(this)
+  }
 
-  const _Request = Schema.Struct({
+  export class Request extends Schema.Class<Request>("QuestionRequest")({
     id: QuestionID,
     sessionID: SessionID,
     questions: Schema.Array(Info).annotate({
       description: "Questions to ask",
     }),
     tool: Schema.optional(Tool),
-  }).annotate({ identifier: "QuestionRequest" })
-  export const Request = Object.assign(_Request, { zod: zod(_Request) })
-  export type Request = Schema.Schema.Type<typeof _Request>
+  }) {
+    static readonly zod = zod(this)
+  }
 
   const _Answer = Schema.Array(Schema.String).annotate({ identifier: "QuestionAnswer" })
   export const Answer = Object.assign(_Answer, { zod: zod(_Answer) })
   export type Answer = Schema.Schema.Type<typeof _Answer>
 
-  const _Reply = Schema.Struct({
+  export class Reply extends Schema.Class<Reply>("QuestionReply")({
     answers: Schema.Array(Answer).annotate({
       description: "User answers in order of questions (each answer is an array of selected labels)",
     }),
-  }).annotate({ identifier: "QuestionReply" })
-  export const Reply = Object.assign(_Reply, { zod: zod(_Reply) })
-  export type Reply = Schema.Schema.Type<typeof _Reply>
+  }) {
+    static readonly zod = zod(this)
+  }
 
-  const replied = Schema.Struct({
+  class Replied extends Schema.Class<Replied>("QuestionReplied")({
     sessionID: SessionID,
     requestID: QuestionID,
     answers: Schema.Array(Answer),
-  })
+  }) {}
 
-  const rejected = Schema.Struct({
+  class Rejected extends Schema.Class<Rejected>("QuestionRejected")({
     sessionID: SessionID,
     requestID: QuestionID,
-  })
+  }) {}
 
   export const Event = {
     Asked: BusEvent.define("question.asked", Request.zod),
-    Replied: BusEvent.define("question.replied", zod(replied)),
-    Rejected: BusEvent.define("question.rejected", zod(rejected)),
+    Replied: BusEvent.define("question.replied", zod(Replied)),
+    Rejected: BusEvent.define("question.rejected", zod(Rejected)),
   }
 
   export class RejectedError extends Schema.TaggedErrorClass<RejectedError>()("QuestionRejectedError", {}) {
