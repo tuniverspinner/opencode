@@ -25,3 +25,14 @@
 - Implemented `TuiSimulation.createSimulationRenderer(...)` beside `thread.ts`. It creates a test renderer and exposes `renderOnce`, `screen`, `spans`, and `destroy`.
 - `thread.ts` checks `OPENCODE_SIMULATION`, creates the fake renderer there, starts the normal worker/backend, and passes the renderer into `tui(...)`.
 - `tui(...)` now accepts an injected `CliRenderer`, test mode, and an `onReady` callback. Production still creates the real renderer.
+
+## OpenTUI Action APIs
+
+- Interactable discovery can walk `renderer.root.getChildren()` recursively.
+- `Renderable.focusable` and `Renderable.focused` are public and enough to discover focus targets.
+- `renderer.currentFocusedEditor` identifies active text input/edit-buffer targets for typing/submission.
+- `renderer.hitTest(x, y)` maps terminal coordinates through the hit grid to a renderable id.
+- Renderables have public geometry: `screenX`, `screenY`, `width`, `height`, and `num`.
+- Mouse listener metadata is stored internally on renderables; first pass checks `_mouseListener` / `_mouseListeners` at runtime to identify clickable targets. This is pragmatic but not a stable public API.
+- Test execution uses `mockInput.typeText`, `mockInput.pressEnter`, `mockInput.pressArrow`, and `mockMouse.click` from OpenTUI testing.
+- Implemented `SimulationActions` with `elements(...)`, `actions(...)`, and `execute(...)`.

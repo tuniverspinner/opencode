@@ -260,6 +260,8 @@ Implementation shape:
 - Add a renderer factory/testing hook to `tui(...)` so tests can pass a fake renderer.
 - Current first pass checks `OPENCODE_SIMULATION` in `cli/cmd/tui/thread.ts`, starts the normal worker/backend, and injects an OpenTUI test renderer into `tui(...)`.
 - Fake renderer setup lives in `cli/cmd/tui/simulation.ts` and returns `renderOnce`, `screen`, and `spans` helpers for the thread-side simulation runner.
+- Initial action discovery lives in `packages/opencode/src/testing/simulation/actions.ts`.
+- OpenTUI exposes `renderer.root` for walking renderables, `Renderable.focusable`, `renderer.currentFocusedEditor`, `renderer.hitTest(...)`, and test `mockInput` / `mockMouse` APIs for execution.
 - Do not render to a real terminal in simulation mode.
 - Investigate OpenTUI APIs for walking the render tree and extracting focusable/clickable/editable elements.
 - Investigate OpenTUI APIs for reading the screen buffer from the fake renderer.
@@ -271,6 +273,7 @@ Todos:
 - [x] Inspect `@opentui/solid` `testRender` capabilities.
 - [x] Determine how to get a screen buffer string/snapshot from the fake renderer.
 - [x] Determine first structured capture API for interactable discovery: `captureSpans()`.
+- [x] Add first pass renderable-based interactable discovery for focused editors, focusable elements, and mouse handlers.
 - [x] Add a minimal renderer factory override to `tui(...)` or app startup.
 - [ ] Expose prompt ref, route, sync state, keymap, and renderer to the simulation harness.
 - [ ] Verify TUI starts in fake renderer with no real terminal output.
