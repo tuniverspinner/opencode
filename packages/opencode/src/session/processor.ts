@@ -243,6 +243,13 @@ export const layer = Layer.effect(
             if (!(value.id in ctx.reasoningMap)) return
             ctx.reasoningMap[value.id].text += value.text
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
+            if (flags.experimentalEventSystem)
+              yield* events.publish(SessionEvent.Reasoning.Delta, {
+                sessionID: ctx.reasoningMap[value.id].sessionID,
+                reasoningID: value.id,
+                delta: value.text,
+                timestamp: DateTime.makeUnsafe(Date.now()),
+              })
             yield* session.updatePartDelta({
               sessionID: ctx.reasoningMap[value.id].sessionID,
               messageID: ctx.reasoningMap[value.id].messageID,
@@ -579,6 +586,12 @@ export const layer = Layer.effect(
             if (!ctx.currentText) return
             ctx.currentText.text += value.text
             if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
+            if (flags.experimentalEventSystem)
+              yield* events.publish(SessionEvent.Text.Delta, {
+                delta: value.text,
+                sessionID: ctx.currentText.sessionID,
+                timestamp: DateTime.makeUnsafe(Date.now()),
+              })
             yield* session.updatePartDelta({
               sessionID: ctx.currentText.sessionID,
               messageID: ctx.currentText.messageID,

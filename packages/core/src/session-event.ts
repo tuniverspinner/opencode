@@ -157,7 +157,6 @@ export namespace Text {
 
   export const Delta = EventV2.define({
     type: "session.next.text.delta",
-    ...options,
     schema: {
       ...Base,
       delta: Schema.String,
@@ -189,7 +188,6 @@ export namespace Reasoning {
 
   export const Delta = EventV2.define({
     type: "session.next.reasoning.delta",
-    ...options,
     schema: {
       ...Base,
       reasoningID: Schema.String,

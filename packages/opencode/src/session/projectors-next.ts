@@ -164,14 +164,12 @@ export default [
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Text.Started), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.text.started", data })
   }),
-  SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Text.Delta), () => {}),
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Text.Ended), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.text.ended", data })
   }),
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Tool.Input.Started), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.tool.input.started", data })
   }),
-  SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Tool.Input.Delta), () => {}),
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Tool.Input.Ended), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.tool.input.ended", data })
   }),
@@ -187,7 +185,6 @@ export default [
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Reasoning.Started), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.reasoning.started", data })
   }),
-  SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Reasoning.Delta), () => {}),
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Reasoning.Ended), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.reasoning.ended", data })
   }),
@@ -197,7 +194,6 @@ export default [
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Compaction.Started), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.compaction.started", data })
   }),
-  SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Compaction.Delta), () => {}),
   SyncEvent.project(EventV2Bridge.toSyncDefinition(SessionEvent.Compaction.Ended), (db, data, event) => {
     update(db, { id: SessionMessage.ID.make(event.id), type: "session.next.compaction.ended", data })
   }),
