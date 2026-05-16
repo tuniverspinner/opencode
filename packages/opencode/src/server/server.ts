@@ -250,7 +250,10 @@ function serverLayer(opts: ListenOptions) {
   }) as typeof server.close
 
   return Layer.mergeAll(
-    NodeHttpServer.layer(() => server, nodeListenOptions(opts)),
+    NodeHttpServer.layer(() => server, {
+      ...(opts.type === "socket" ? { path: opts.socket } : { port: opts.port, host: opts.hostname }),
+      gracefulShutdownTimeout: "1 second",
+    }),
     Layer.succeed(ListenerServerService)(
       ListenerServerService.of({
         closeAll: Effect.sync(() => {
@@ -260,11 +263,6 @@ function serverLayer(opts: ListenOptions) {
       }),
     ),
   )
-}
-
-function nodeListenOptions(opts: ListenOptions) {
-  if (opts.type === "socket") return { path: opts.socket, gracefulShutdownTimeout: "1 second" as const }
-  return { port: opts.port, host: opts.hostname, gracefulShutdownTimeout: "1 second" as const }
 }
 
 export * as Server from "./server"
