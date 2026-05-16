@@ -974,7 +974,7 @@ function getSyntaxRules(theme: Theme) {
     {
       scope: ["markup.heading.3"],
       style: {
-        foreground: theme.textMuted,
+        foreground: tint(theme.textMuted, theme.markdownHeading, 0.6),
         bold: true,
       },
     },
