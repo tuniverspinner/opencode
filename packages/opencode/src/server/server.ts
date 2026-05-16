@@ -119,18 +119,18 @@ const listenEffect: (opts: ListenOptions) => Effect.Effect<EffectListener, unkno
   function* (opts: ListenOptions) {
     const state = yield* startWithPortFallback(opts)
     if (opts.type === "socket") {
-      const listenerUrl = makeSocketURL(opts.socket)
-
       return {
         type: "socket" as const,
         socket: opts.socket,
-        url: listenerUrl,
+        url: new URL(`socket:${encodeURIComponent(opts.socket)}`),
         stop: yield* makeStop(state, Effect.void),
       }
     }
 
     const address = yield* tcpAddress(state)
-    const listenerUrl = makeURL(opts.hostname, address.port)
+    const listenerUrl = new URL("http://localhost")
+    listenerUrl.hostname = opts.hostname
+    listenerUrl.port = String(address.port)
     url = listenerUrl
 
     const unpublishMdns = yield* setupMdns(opts, address.port, state.scope)
@@ -191,17 +191,6 @@ function tcpAddress(state: ListenerState) {
     yield* Scope.close(state.scope, Exit.void).pipe(Effect.ignore)
     return yield* Effect.die(new Error(`Unexpected HttpServer address tag: ${state.server.address._tag}`))
   })
-}
-
-function makeURL(hostname: string, port?: number) {
-  const result = new URL("http://localhost")
-  result.hostname = hostname
-  if (port !== undefined) result.port = String(port)
-  return result
-}
-
-function makeSocketURL(socket: string) {
-  return new URL(`socket:${encodeURIComponent(socket)}`)
 }
 
 function setupMdns(opts: TcpListenOptions, port: number, scope: Scope.Scope) {
