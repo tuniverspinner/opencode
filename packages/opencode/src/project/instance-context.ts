@@ -1,4 +1,3 @@
-import { LocalContext } from "@/util/local-context"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import type * as Project from "./project"
 
@@ -7,8 +6,6 @@ export interface InstanceContext {
   worktree: string
   project: Project.Info
 }
-
-export const context = LocalContext.create<InstanceContext>("instance")
 
 /**
  * Check if a path is within the project boundary.

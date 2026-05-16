@@ -3,6 +3,7 @@ import { $ } from "bun"
 import fs from "node:fs/promises"
 import Http from "node:http"
 import path from "node:path"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { setTimeout as delay } from "node:timers/promises"
 import { NodeHttpServer } from "@effect/platform-node"
 import { Effect, Layer, Schema } from "effect"
@@ -14,7 +15,7 @@ import { GlobalBus, type GlobalEvent } from "@/bus/global"
 import { Database } from "@/storage/db"
 import { ProjectID } from "@/project/schema"
 import { ProjectTable } from "@/project/project.sql"
-import { context, type InstanceContext } from "@/project/instance-context"
+import type { InstanceContext } from "@/project/instance-context"
 import { InstanceRef } from "@/effect/instance-ref"
 import { Session as SessionNs } from "@/session/session"
 import { SessionID } from "@/session/schema"
@@ -68,6 +69,7 @@ const testServerLayer = Layer.mergeAll(
   SessionNs.defaultLayer,
 )
 const it = testEffect(testServerLayer)
+const testInstanceContext = new AsyncLocalStorage<InstanceContext>()
 
 type RecordedCreate = {
   info: WorkspaceInfo
@@ -124,7 +126,7 @@ afterEach(async () => {
 async function withInstance<T>(fn: (ctx: InstanceContext) => T | Promise<T>) {
   await using tmp = await tmpdir({ git: true })
   const ctx = await AppRuntime.runPromise(InstanceStore.Service.use((store) => store.load({ directory: tmp.path })))
-  return await context.provide(ctx, () => fn(ctx))
+  return await testInstanceContext.run(ctx, () => fn(ctx))
 }
 
 async function initGitRepo(dir: string) {
@@ -140,11 +142,7 @@ async function initGitRepo(dir: string) {
 }
 
 function currentInstance() {
-  try {
-    return context.use()
-  } catch {
-    return undefined
-  }
+  return testInstanceContext.getStore()
 }
 
 const runWorkspace = <A, E>(effect: Effect.Effect<A, E, Workspace.Service>) => {
@@ -936,7 +934,7 @@ describe("workspace CRUD", () => {
       const workspaceCtx = await AppRuntime.runPromise(
         InstanceStore.Service.use((store) => store.load({ directory: workspaceTmp.path })),
       )
-      const workspaceProjectID = await context.provide(workspaceCtx, async () => {
+      const workspaceProjectID = await testInstanceContext.run(workspaceCtx, async () => {
         const id = workspaceCtx.project.id
         expect(id).not.toBe(projectID)
         await warpWorkspaceSession({ workspaceID: null, sessionID: session.id })
