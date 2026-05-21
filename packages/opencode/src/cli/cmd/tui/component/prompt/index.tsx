@@ -1145,12 +1145,12 @@ export function Prompt(props: PromptProps) {
       setStore("mode", "normal")
     } else if (isCompactSlash(inputText)) {
       const instructions = slashArguments(inputText).trim()
-      const payload = instructions
+      const payload: Parameters<typeof sdk.client.session.summarize>[0] & { $body_instructions?: string } = instructions
         ? {
             sessionID,
             modelID: selectedModel.modelID,
             providerID: selectedModel.providerID,
-            instructions,
+            $body_instructions: instructions,
           }
         : {
             sessionID,
