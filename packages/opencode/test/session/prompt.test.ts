@@ -506,7 +506,7 @@ it.instance("loop calls LLM and returns assistant message", () =>
   }),
 )
 
-it.instance("structured output uses auto tool choice when model disables required tool choice", () =>
+it.instance("structured output uses auto tool choice and errors when the model ignores the tool", () =>
   Effect.gen(function* () {
     const { llm } = yield* useServerConfig(providerCfgWithoutRequiredToolChoice)
     const prompt = yield* SessionPrompt.Service
@@ -517,7 +517,7 @@ it.instance("structured output uses auto tool choice when model disables require
     })
     yield* llm.text("plain text")
 
-    yield* prompt.prompt({
+    const result = yield* prompt.prompt({
       sessionID: chat.id,
       agent: "build",
       model: { providerID: ProviderID.make("test"), modelID: ModelID.make("tool-choice-disabled") },
@@ -540,6 +540,11 @@ it.instance("structured output uses auto tool choice when model disables require
         expect.objectContaining({ function: expect.objectContaining({ name: "StructuredOutput" }) }),
       ]),
     )
+    expect(result.info.role).toBe("assistant")
+    if (result.info.role === "assistant") {
+      expect(result.info.error?.name).toBe("StructuredOutputError")
+      expect(result.info.structured).toBeUndefined()
+    }
   }),
 )
 
