@@ -2,6 +2,7 @@ import { BusEvent } from "@/bus/bus-event"
 import { SessionID, MessageID, PartID } from "./schema"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { APICallError, convertToModelMessages, LoadAPIKeyError, type ModelMessage, type UIMessage } from "ai"
+import { LLMError } from "@opencode-ai/llm"
 import { LSP } from "@/lsp/lsp"
 import { Snapshot } from "@/snapshot"
 import { SyncEvent } from "../sync"
@@ -1165,6 +1166,19 @@ export function fromError(
           responseHeaders: parsed.responseHeaders,
           responseBody: parsed.responseBody,
           metadata: parsed.metadata,
+        },
+        { cause: e },
+      ).toObject()
+    case e instanceof LLMError:
+      const http = "http" in e.reason ? e.reason.http : undefined
+      return new APIError(
+        {
+          message: e.reason.message,
+          statusCode: ("status" in e.reason ? e.reason.status : undefined) ?? http?.response?.status,
+          isRetryable: e.retryable,
+          responseHeaders: http?.response?.headers,
+          responseBody: http?.body,
+          metadata: http?.request.url ? { url: http.request.url } : undefined,
         },
         { cause: e },
       ).toObject()

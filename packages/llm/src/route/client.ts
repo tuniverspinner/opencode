@@ -1,7 +1,8 @@
-import { Cause, Context, Effect, Layer, Schema, Stream } from "effect"
+import { Cause, Context, Effect, Layer, Queue, Schema, Stream } from "effect"
 import type { Auth as AuthDef } from "./auth"
 import type { Endpoint } from "./endpoint"
 import { RequestExecutor } from "./executor"
+import type { RetryInfo } from "./executor"
 import type { Framing } from "./framing"
 import { HttpTransport } from "./transport"
 import type { Transport, TransportRuntime } from "./transport"
@@ -12,10 +13,11 @@ import { applyCachePolicy } from "../cache-policy"
 import * as ProviderShared from "../protocols/shared"
 import * as ToolRuntime from "../tool-runtime"
 import type { Tools } from "../tool"
-import type { LLMError, LLMEvent, PreparedRequestOf, ProtocolID } from "../schema"
+import type { LLMError, PreparedRequestOf, ProtocolID } from "../schema"
 import {
   GenerationOptions,
   HttpOptions,
+  LLMEvent,
   LLMRequest,
   LLMResponse,
   ModelID,
@@ -439,6 +441,50 @@ const streamRequestWith = (runtime: TransportRuntime) => (request: LLMRequest) =
     }),
   )
 
+const retryEvent = (info: RetryInfo) =>
+  Effect.sync(() => {
+    const http = "http" in info.error.reason ? info.error.reason.http : undefined
+    return LLMEvent.retry({
+      attempt: info.attempt,
+      delayMs: info.delayMs,
+      message: info.error.reason.message,
+      providerMetadata: {
+        opencode: {
+          module: info.error.module,
+          method: info.error.method,
+          reason: info.error.reason._tag,
+          status: ("status" in info.error.reason ? info.error.reason.status : undefined) ?? http?.response?.status,
+        },
+      },
+    })
+  })
+
+const streamRequestObservableWith = (runtime: TransportRuntime) => (request: LLMRequest) =>
+  Stream.callback<LLMEvent, LLMError>((queue) =>
+    Effect.gen(function* () {
+      const pull = yield* Stream.toPull(
+        streamRequestWith({
+          ...runtime,
+          httpOptions: {
+            onRetry: (info) => retryEvent(info).pipe(Effect.map((event) => Queue.offerUnsafe(queue, event))),
+          },
+        })(request),
+      )
+
+      const drain: Effect.Effect<void, never> = Effect.gen(function* () {
+        const chunk = yield* pull
+        for (const event of chunk) Queue.offerUnsafe(queue, event)
+        return yield* drain
+      }).pipe(
+        Effect.catchIf(Cause.isDone, () => Effect.sync(() => Queue.endUnsafe(queue))),
+        Effect.catchTag("LLM.Error", (error) => Queue.fail(queue, error)),
+      )
+
+      yield* drain
+    }),
+  )
+
+
 const isToolRunOptions = (input: LLMRequest | ToolRuntime.RunOptions<Tools>): input is ToolRuntime.RunOptions<Tools> =>
   "request" in input && "tools" in input
 
@@ -495,7 +541,7 @@ export const streamRequest = (request: LLMRequest) =>
 export const layer: Layer.Layer<Service, never, RequestExecutor.Service> = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const stream = streamWith(streamRequestWith({ http: yield* RequestExecutor.Service }))
+    const stream = streamWith(streamRequestObservableWith({ http: yield* RequestExecutor.Service }))
     return Service.of({ prepare: prepareWith as Interface["prepare"], stream, generate: generateWith(stream) })
   }),
 )
@@ -505,7 +551,7 @@ export const layerWithWebSocket: Layer.Layer<Service, never, RequestExecutor.Ser
     Service,
     Effect.gen(function* () {
       const stream = streamWith(
-        streamRequestWith({
+        streamRequestObservableWith({
           http: yield* RequestExecutor.Service,
           webSocket: yield* WebSocketExecutor.Service,
         }),

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { APICallError } from "ai"
+import { HttpContext, HttpRequestDetails, HttpResponseDetails, LLMError, TransportReason } from "@opencode-ai/llm"
 import { MessageV2 } from "../../src/session/message-v2"
 import { ProviderTransform } from "@/provider/transform"
 import type { Provider } from "@/provider/provider"
@@ -1545,6 +1546,69 @@ describe("session.message-v2.fromError", () => {
     const result = MessageV2.fromError(zlibError, { providerID, aborted: true })
 
     expect(result.name).toBe("MessageAbortedError")
+  })
+
+  test("classifies native LLM transport errors as retryable APIError", () => {
+    const result = MessageV2.fromError(
+      new LLMError({
+        module: "RequestExecutor",
+        method: "execute",
+        reason: new TransportReason({
+          message: "HTTP transport failed",
+          kind: "TransportError",
+          url: "https://provider.test/v1/chat",
+          http: new HttpContext({
+            request: new HttpRequestDetails({
+              method: "POST",
+              url: "https://provider.test/v1/chat",
+              headers: { "x-safe": "visible" },
+            }),
+          }),
+        }),
+      }),
+      { providerID },
+    )
+
+    expect(MessageV2.APIError.isInstance(result)).toBe(true)
+    expect((result as MessageV2.APIError).data).toMatchObject({
+      message: "HTTP transport failed",
+      isRetryable: true,
+      metadata: { url: "https://provider.test/v1/chat" },
+    })
+  })
+
+  test("preserves native LLM HTTP response metadata for retry scheduling", () => {
+    const result = MessageV2.fromError(
+      new LLMError({
+        module: "RequestExecutor",
+        method: "execute",
+        reason: new TransportReason({
+          message: "HTTP transport failed",
+          kind: "TransportError",
+          http: new HttpContext({
+            request: new HttpRequestDetails({
+              method: "POST",
+              url: "https://provider.test/v1/chat",
+              headers: {},
+            }),
+            response: new HttpResponseDetails({
+              status: 503,
+              headers: { "retry-after-ms": "1000" },
+            }),
+            body: "busy",
+          }),
+        }),
+      }),
+      { providerID },
+    )
+
+    expect(MessageV2.APIError.isInstance(result)).toBe(true)
+    expect((result as MessageV2.APIError).data).toMatchObject({
+      statusCode: 503,
+      isRetryable: true,
+      responseHeaders: { "retry-after-ms": "1000" },
+      responseBody: "busy",
+    })
   })
 })
 

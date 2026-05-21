@@ -26,7 +26,18 @@ import {
 export interface Interface {
   readonly execute: (
     request: HttpClientRequest.HttpClientRequest,
+    options?: ExecuteOptions,
   ) => Effect.Effect<HttpClientResponse.HttpClientResponse, LLMError>
+}
+
+export type RetryInfo = {
+  readonly attempt: number
+  readonly delayMs: number
+  readonly error: LLMError
+}
+
+export type ExecuteOptions = {
+  readonly onRetry?: (info: RetryInfo) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/LLM/RequestExecutor") {}
@@ -341,14 +352,16 @@ const retryDelay = (error: LLMError, attempt: number) => {
 
 const retryStatusFailures = <A, R>(
   effect: Effect.Effect<A, LLMError, R>,
+  options: ExecuteOptions | undefined,
   retries = MAX_RETRIES,
   attempt = 0,
 ): Effect.Effect<A, LLMError, R> =>
   Effect.catchTag(effect, "LLM.Error", (error): Effect.Effect<A, LLMError, R> => {
     if (!error.retryable || retries <= 0) return Effect.fail(error)
     return retryDelay(error, attempt).pipe(
+      Effect.tap((delay) => options?.onRetry?.({ attempt: attempt + 1, delayMs: delay, error }) ?? Effect.void),
       Effect.flatMap((delay) => Effect.sleep(delay)),
-      Effect.flatMap(() => retryStatusFailures(effect, retries - 1, attempt + 1)),
+      Effect.flatMap(() => retryStatusFailures(effect, options, retries - 1, attempt + 1)),
     )
   })
 
@@ -364,7 +377,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           .pipe(Effect.mapError(toHttpError(redactedNames)), Effect.flatMap(statusError(request, redactedNames)))
       })
     return Service.of({
-      execute: (request) => retryStatusFailures(executeOnce(request)),
+      execute: (request, options) => retryStatusFailures(executeOnce(request), options),
     })
   }),
 )

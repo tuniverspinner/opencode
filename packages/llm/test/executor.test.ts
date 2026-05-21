@@ -1,12 +1,12 @@
 import { describe, expect } from "bun:test"
-import { Effect, Fiber, Layer, Random, Ref } from "effect"
+import { Effect, Fiber, Layer, Random, Ref, Stream } from "effect"
 import * as TestClock from "effect/testing/TestClock"
-import { Headers, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
-import { LLM, LLMError } from "../src"
+import { Headers, HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { LLM, LLMError, TransportReason } from "../src"
 import { LLMClient, RequestExecutor } from "../src/route"
 import * as OpenAIChat from "../src/protocols/openai-chat"
-import { dynamicResponse } from "./lib/http"
-import { deltaChunk } from "./lib/openai-chunks"
+import { dynamicResponse, runtimeLayer } from "./lib/http"
+import { deltaChunk, finishChunk } from "./lib/openai-chunks"
 import { sseRaw } from "./lib/sse"
 import { it } from "./lib/effect"
 
@@ -18,23 +18,26 @@ const secretRequest = HttpClientRequest.post("https://provider.test/v1/chat?api_
   HttpClientRequest.setHeaders(Headers.fromInput({ authorization: "Bearer header-secret-456" })),
 )
 
+const httpResponsesLayer = (responses: ReadonlyArray<Response>) =>
+  Layer.unwrap(
+    Effect.gen(function* () {
+      const cursor = yield* Ref.make(0)
+      return Layer.succeed(
+        HttpClient.HttpClient,
+        HttpClient.make((request) =>
+          Effect.gen(function* () {
+            const index = yield* Ref.getAndUpdate(cursor, (value) => value + 1)
+            return HttpClientResponse.fromWeb(request, responses[index] ?? responses[responses.length - 1])
+          }),
+        ),
+      )
+    }),
+  )
+
 const responsesLayer = (responses: ReadonlyArray<Response>) =>
   RequestExecutor.layer.pipe(
     Layer.provide(
-      Layer.unwrap(
-        Effect.gen(function* () {
-          const cursor = yield* Ref.make(0)
-          return Layer.succeed(
-            HttpClient.HttpClient,
-            HttpClient.make((request) =>
-              Effect.gen(function* () {
-                const index = yield* Ref.getAndUpdate(cursor, (value) => value + 1)
-                return HttpClientResponse.fromWeb(request, responses[index] ?? responses[responses.length - 1])
-              }),
-            ),
-          )
-        }),
-      ),
+      httpResponsesLayer(responses),
     ),
   )
 
@@ -59,6 +62,30 @@ const countedResponsesLayer = (attempts: Ref.Ref<number>, responses: ReadonlyArr
     ),
   )
 
+const transportThenResponseLayer = (attempts: Ref.Ref<number>, response: Response) =>
+  RequestExecutor.layer.pipe(
+    Layer.provide(
+      Layer.succeed(
+        HttpClient.HttpClient,
+        HttpClient.make((request) =>
+          Ref.getAndUpdate(attempts, (value) => value + 1).pipe(
+            Effect.flatMap((index) =>
+              index === 0
+                ? Effect.fail(
+                    new HttpClientError.HttpClientError({
+                      reason: new HttpClientError.TransportError({
+                        request,
+                      }),
+                    }),
+                  )
+                : Effect.succeed(HttpClientResponse.fromWeb(request, response)),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+
 const randomMidpoint = {
   nextDoubleUnsafe: () => 0.5,
   nextIntUnsafe: () => 0,
@@ -73,6 +100,23 @@ const expectLLMError = (error: unknown) => {
 const errorHttp = (error: LLMError) => ("http" in error.reason ? error.reason.http : undefined)
 
 describe("RequestExecutor", () => {
+  it.effect("only marks transient transport reasons retryable", () =>
+    Effect.sync(() => {
+      const retryable = (kind: string | undefined) =>
+        new LLMError({
+          module: "RequestExecutor",
+          method: "execute",
+          reason: new TransportReason({ message: "HTTP transport failed", kind }),
+        }).retryable
+
+      expect(retryable("TransportError")).toBe(true)
+      expect(retryable("Timeout")).toBe(true)
+      expect(retryable("EncodeError")).toBe(false)
+      expect(retryable("InvalidUrlError")).toBe(false)
+      expect(retryable(undefined)).toBe(false)
+    }),
+  )
+
   it.effect("returns redacted diagnostics for retryable rate limits", () =>
     Effect.gen(function* () {
       const executor = yield* RequestExecutor.Service
@@ -223,6 +267,57 @@ describe("RequestExecutor", () => {
         ]),
       ),
     ),
+  )
+
+  it.effect("reports retry attempts before retrying status responses", () =>
+    Effect.gen(function* () {
+      const executor = yield* RequestExecutor.Service
+      const retries: RequestExecutor.RetryInfo[] = []
+      const response = yield* executor.execute(request, {
+        onRetry: (info) => Effect.sync(() => retries.push(info)),
+      })
+
+      expect(response.status).toBe(200)
+      expect(retries).toHaveLength(1)
+      expect(retries[0].attempt).toBe(1)
+      expect(retries[0].delayMs).toBe(0)
+      expect(retries[0].error.reason).toMatchObject({ _tag: "ProviderInternal", status: 503 })
+    }).pipe(
+      Effect.provide(
+        responsesLayer([
+          new Response("busy", { status: 503, headers: { "retry-after-ms": "0" } }),
+          new Response("ok", { status: 200 }),
+        ]),
+      ),
+    ),
+  )
+
+  it.effect("emits retry events before silently retried stream requests", () =>
+    Effect.gen(function* () {
+      const model = OpenAIChat.model({ id: "gpt-4o-mini", baseURL: "https://api.openai.test/v1" })
+      const events = yield* LLMClient.stream(LLM.request({ model, prompt: "Say hello." })).pipe(
+        Stream.runCollect,
+        Effect.provide(
+          runtimeLayer(
+            httpResponsesLayer([
+              new Response("busy", { status: 503, headers: { "retry-after-ms": "0" } }),
+              new Response(
+                sseRaw(
+                  `data: ${JSON.stringify(deltaChunk({ role: "assistant", content: "Hello" }))}`,
+                  `data: ${JSON.stringify(finishChunk("stop"))}`,
+                ),
+                {
+                  headers: { "content-type": "text/event-stream" },
+                },
+              ),
+            ]),
+          ),
+        ),
+      )
+
+      expect(events[0]).toMatchObject({ type: "retry", attempt: 1, delayMs: 0 })
+      expect(events.some((event) => event.type === "text-delta")).toBe(true)
+    }),
   )
 
   it.effect("marks 504 and 529 status responses retryable", () =>
@@ -382,6 +477,30 @@ describe("RequestExecutor", () => {
           ]),
         ),
       )
+    }).pipe(Effect.provideService(Random.Random, randomMidpoint)),
+  )
+
+  it.effect("retries retryable transport failures before returning the stream", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      return yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const fiber = yield* executor.execute(request).pipe(Effect.forkChild)
+
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* TestClock.adjust(499)
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* TestClock.adjust(1)
+        const response = yield* Fiber.join(fiber)
+
+        expect(response.status).toBe(200)
+        expect(yield* response.text).toBe("ok")
+        expect(yield* Ref.get(attempts)).toBe(2)
+      }).pipe(Effect.provide(transportThenResponseLayer(attempts, new Response("ok", { status: 200 }))))
     }).pipe(Effect.provideService(Random.Random, randomMidpoint)),
   )
 

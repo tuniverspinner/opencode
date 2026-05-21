@@ -203,6 +203,15 @@ export const ProviderErrorEvent = Schema.Struct({
 }).annotate({ identifier: "LLM.Event.ProviderError" })
 export type ProviderErrorEvent = Schema.Schema.Type<typeof ProviderErrorEvent>
 
+export const RetryEvent = Schema.Struct({
+  type: Schema.tag("retry"),
+  attempt: Schema.Number,
+  delayMs: Schema.Number,
+  message: Schema.String,
+  providerMetadata: Schema.optional(ProviderMetadata),
+}).annotate({ identifier: "LLM.Event.Retry" })
+export type RetryEvent = Schema.Schema.Type<typeof RetryEvent>
+
 const llmEventTagged = Schema.Union([
   StepStart,
   TextStart,
@@ -220,6 +229,7 @@ const llmEventTagged = Schema.Union([
   StepFinish,
   Finish,
   ProviderErrorEvent,
+  RetryEvent,
 ]).pipe(Schema.toTaggedUnion("type"))
 
 type WithID<Event extends { readonly id: unknown }, ID> = Omit<Event, "type" | "id"> & { readonly id: ID | string }
@@ -265,6 +275,7 @@ export const LLMEvent = Object.assign(llmEventTagged, {
       usage: input.usage === undefined ? undefined : Usage.from(input.usage),
     }),
   providerError: ProviderErrorEvent.make,
+  retry: RetryEvent.make,
   is: {
     stepStart: llmEventTagged.guards["step-start"],
     textStart: llmEventTagged.guards["text-start"],
@@ -282,6 +293,7 @@ export const LLMEvent = Object.assign(llmEventTagged, {
     stepFinish: llmEventTagged.guards["step-finish"],
     finish: llmEventTagged.guards.finish,
     providerError: llmEventTagged.guards["provider-error"],
+    retry: llmEventTagged.guards.retry,
   },
 })
 export type LLMEvent = Schema.Schema.Type<typeof llmEventTagged>

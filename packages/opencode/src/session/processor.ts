@@ -303,6 +303,15 @@ export const layer = Layer.effect(
 
       const handleEvent = Effect.fnUntraced(function* (value: StreamEvent) {
         switch (value.type) {
+          case "retry":
+            yield* status.set(ctx.sessionID, {
+              type: "retry",
+              attempt: value.attempt,
+              message: value.message,
+              next: Date.now() + value.delayMs,
+            })
+            return
+
           case "reasoning-start":
             if (value.id in ctx.reasoningMap) return
             // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
