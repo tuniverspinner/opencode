@@ -20,6 +20,7 @@ import * as Log from "@opencode-ai/core/util/log"
 import { EffectBridge } from "@/effect/bridge"
 
 const log = Log.create({ service: "session.tools" })
+const schemaInternalKeys = new Set(["_def", "def", "_zod", "~standard", "_cached", "typeName"])
 
 export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   agent: Agent.Info
@@ -78,6 +79,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     agent: input.agent,
   })) {
     const schema = ProviderTransform.schema(input.model, ToolJsonSchema.fromTool(item))
+    assertNoSchemaInternals(item.id, schema)
     tools[item.id] = tool({
       description: item.description,
       inputSchema: jsonSchema(schema),
@@ -121,6 +123,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
 
     const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
     const transformed = ProviderTransform.schema(input.model, schema)
+    assertNoSchemaInternals(key, transformed)
     item.inputSchema = jsonSchema(transformed)
     item.execute = (args, opts) =>
       run.promise(
@@ -204,5 +207,32 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
 
   return tools
 })
+
+function assertNoSchemaInternals(toolID: string, schema: unknown) {
+  const path = schemaInternalPath(schema)
+  if (!path) return
+  throw new Error(`Tool ${toolID} input schema contains non-JSON-Schema Zod internals at ${path}`)
+}
+
+function schemaInternalPath(value: unknown, path = "$", skipKeys = false): string | undefined {
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => schemaInternalPath(item, `${path}[${index}]`))
+      .find((item): item is string => item !== undefined)
+  }
+  if (typeof value !== "object" || value === null) return undefined
+
+  for (const [key, item] of Object.entries(value)) {
+    const nextPath = /^[A-Za-z_$][\w$]*$/.test(key) ? `${path}.${key}` : `${path}[${JSON.stringify(key)}]`
+    if (!skipKeys && schemaInternalKeys.has(key)) return nextPath
+    const found = schemaInternalPath(
+      item,
+      nextPath,
+      key === "properties" || key === "$defs" || key === "definitions" || key === "patternProperties",
+    )
+    if (found) return found
+  }
+  return undefined
+}
 
 export * as SessionTools from "./tools"
