@@ -55,7 +55,7 @@ export function parseOptions(args: string[]): Options {
   }
 }
 
-export function matches(options: Options, scenario: Scenario) {
+function matches(options: Options, scenario: Scenario) {
   if (!options.include) return true
   return (
     scenario.name.includes(options.include) ||

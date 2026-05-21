@@ -7,7 +7,7 @@ import { buildFileTree, flattenFileTree, type FileTreeItem } from "./diff-viewer
 const FILE_TREE_WIDTH = 32
 const FILE_TREE_HORIZONTAL_PADDING = 2
 
-export type DiffViewerFileTreeTheme = {
+type DiffViewerFileTreeTheme = {
   readonly background: ColorInput
   readonly backgroundPanel: ColorInput
   readonly backgroundElement: ColorInput

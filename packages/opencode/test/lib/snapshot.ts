@@ -21,17 +21,8 @@ const REAL_TMP = fs.realpathSync(TMP)
  * snapshots captured on macOS/Linux contain LF, so a Windows run without
  * this step always diffs.
  */
-export function stripCrlf(text: string): string {
+function stripCrlf(text: string): string {
   return text.replaceAll("\r\n", "\n")
-}
-
-/**
- * Converts Windows-style `\` separators to POSIX `/` so paths render
- * identically across OSes. Use for path strings you want stable in a
- * snapshot, not for filesystem operations.
- */
-export function toPosixPath(p: string): string {
-  return p.replaceAll("\\", "/")
 }
 
 /**
@@ -39,7 +30,7 @@ export function toPosixPath(p: string): string {
  * `/var/folders` → `/private/var/folders`) from text, replacing each
  * occurrence with `marker` (default `<TMPDIR>`).
  */
-export function withTmpdirStripped(text: string, marker = "<TMPDIR>"): string {
+function withTmpdirStripped(text: string, marker = "<TMPDIR>"): string {
   return text.replaceAll(REAL_TMP, marker).replaceAll(TMP, marker)
 }
 

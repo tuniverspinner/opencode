@@ -9,7 +9,7 @@ import { SDKProvider, type EventSource } from "../../../../src/cli/cmd/tui/conte
 import { SyncProvider, useSync } from "../../../../src/cli/cmd/tui/context/sync"
 import type { GlobalEvent } from "@opencode-ai/sdk/v2"
 
-export const worktree = "/tmp/opencode"
+const worktree = "/tmp/opencode"
 export const directory = `${worktree}/packages/opencode`
 
 export async function wait(fn: () => boolean, timeout = 2000) {
@@ -27,11 +27,7 @@ export function json(data: unknown, init?: ResponseInit) {
   })
 }
 
-export function eventSource(): EventSource {
-  return { subscribe: async () => () => {} }
-}
-
-export function createEventSource() {
+function createEventSource() {
   let fn: ((event: GlobalEvent) => void) | undefined
 
   return {
@@ -52,7 +48,7 @@ export function createEventSource() {
 
 type FetchHandler = (url: URL) => Response | Promise<Response> | undefined
 
-export function createFetch(override?: FetchHandler) {
+function createFetch(override?: FetchHandler) {
   const session = [] as URL[]
   const fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input))

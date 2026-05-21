@@ -8,7 +8,7 @@ import { Schema } from "effect"
 import { TuiEvent } from "../event"
 
 type ToastInput = Schema.Codec.Encoded<typeof TuiEvent.ToastShow.properties>
-export type ToastOptions = Schema.Schema.Type<typeof TuiEvent.ToastShow.properties>
+type ToastOptions = Schema.Schema.Type<typeof TuiEvent.ToastShow.properties>
 
 const decodeToastOptions = Schema.decodeUnknownSync(TuiEvent.ToastShow.properties)
 
@@ -84,7 +84,7 @@ function init() {
   return toast
 }
 
-export type ToastContext = ReturnType<typeof init>
+type ToastContext = ReturnType<typeof init>
 
 const ctx = createContext<ToastContext>()
 

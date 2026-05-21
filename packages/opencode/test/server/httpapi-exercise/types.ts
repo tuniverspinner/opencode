@@ -6,7 +6,7 @@ import type { MessageV2 } from "../../../src/session/message-v2"
 import type { SessionID } from "../../../src/session/schema"
 
 export const OpenApiMethods = ["get", "post", "put", "delete", "patch"] as const
-export const Methods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const
+const Methods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const
 
 export type Method = (typeof Methods)[number]
 export type OpenApiMethod = (typeof OpenApiMethods)[number]

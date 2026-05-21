@@ -31,7 +31,7 @@ import { it } from "./effect"
 const opencodeRoot = path.resolve(import.meta.dir, "../../")
 const cliEntry = path.join(opencodeRoot, "src/index.ts")
 
-export const testModelID = "test/test-model"
+const testModelID = "test/test-model"
 
 // Wrap a Bun subprocess pipe (or any ReadableStream<Uint8Array>) as a Stream.
 // Centralizes the `evaluate` + `onError` boilerplate and tags errors with the
@@ -177,7 +177,7 @@ export type CliFixture = {
 // up the tmpdir on scope exit. TestLLMServer.layer is provided internally so
 // the caller doesn't need to wire it up — the fixture's lifetime is tied to
 // the surrounding Scope.
-export function withCliFixture<A, E>(
+function withCliFixture<A, E>(
   fn: (input: CliFixture) => Effect.Effect<A, E, Scope.Scope | HttpClient.HttpClient>,
 ): Effect.Effect<A, E | unknown, Scope.Scope> {
   return Effect.gen(function* () {

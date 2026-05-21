@@ -11,7 +11,7 @@ type ResolvedInput = Omit<TuiConfig.Resolved, "attention" | "keybinds" | "leader
   leader_timeout?: number
 }
 
-export function createTuiResolvedKeybinds(input: Partial<TuiKeybind.Keybinds> = {}): TuiConfig.Resolved["keybinds"] {
+function createTuiResolvedKeybinds(input: Partial<TuiKeybind.Keybinds> = {}): TuiConfig.Resolved["keybinds"] {
   const keybinds = TuiKeybind.Keybinds.parse(input)
   return createBindingLookup(TuiKeybind.toBindingConfig(keybinds), {
     commandMap: TuiKeybind.CommandMap,

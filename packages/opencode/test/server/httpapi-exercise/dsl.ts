@@ -11,7 +11,6 @@ import type {
   RequestSpec,
   ScenarioContext,
   SeededContext,
-  TodoScenario,
 } from "./types"
 
 class ScenarioBuilder<S = undefined> {
@@ -185,14 +184,6 @@ export const http = {
   publicBypass: routes("public-bypass"),
   ticketBypass: routes("ticket-bypass"),
 }
-
-export const pending = (method: Method, path: string, name: string, reason: string): TodoScenario => ({
-  kind: "todo",
-  method,
-  path,
-  name,
-  reason,
-})
 
 export function route(template: string, params: Record<string, string>) {
   return Object.entries(params).reduce(

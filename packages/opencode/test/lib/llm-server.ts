@@ -449,7 +449,7 @@ function fail(item: HttpError) {
   })
 }
 
-export class Reply {
+class Reply {
   #head: unknown[] = [role()]
   #tail: unknown[] = []
   #usage: Usage | undefined
@@ -557,7 +557,7 @@ export function reply() {
   return new Reply()
 }
 
-export function httpError(status: number, body: unknown): Item {
+function httpError(status: number, body: unknown): Item {
   return {
     type: "http-error",
     status,

@@ -49,7 +49,7 @@ export function recentConnectedWorkspaces<WorkspaceInfo extends { id: string; ti
   return { recent, hasMore: recent.length < workspaces.length }
 }
 
-export function warpReminderText(dir: string) {
+function warpReminderText(dir: string) {
   return `<system-reminder>The user has changed the current working directory to "${dir}". This is still the same project but at a possibly new location; take this into account when working with any files from now on.</system-reminder>`
 }
 
@@ -169,7 +169,7 @@ export async function confirmWorkspaceFileChanges(input: {
   return fileChangeChoice === "yes"
 }
 
-export function DialogWorkspaceSelect(props: {
+function DialogWorkspaceSelect(props: {
   adapters?: Adapter[]
   onSelect: (selection: WorkspaceSelection) => Promise<void> | void
 }) {

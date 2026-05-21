@@ -5,7 +5,7 @@ import { isRecord } from "@/util/record"
 type RuntimeSlotMap = TuiSlotMap<Record<string, object>>
 
 type Slot = <Name extends string>(props: TuiSlotProps<Name>) => JSX.Element | null
-export type HostSlotPlugin<Slots extends Record<string, object> = {}> = SolidPlugin<TuiSlotMap<Slots>, TuiSlotContext>
+type HostSlotPlugin<Slots extends Record<string, object> = {}> = SolidPlugin<TuiSlotMap<Slots>, TuiSlotContext>
 
 export type HostPluginApi = TuiPluginApi
 export type HostSlots = {

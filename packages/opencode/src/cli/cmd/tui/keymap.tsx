@@ -11,7 +11,7 @@ import type { TuiConfig } from "./config/tui"
 import { useTuiConfig } from "./context/tui-config"
 import { TuiKeybind } from "./config/keybind"
 
-export const LEADER_TOKEN = "leader"
+const LEADER_TOKEN = "leader"
 export const OPENCODE_BASE_MODE = "base"
 export const COMMAND_PALETTE_COMMAND = "command.palette.show"
 
@@ -38,7 +38,7 @@ function isVisiblePaletteCommand(command: Command) {
   return command.hidden !== true && command.name !== COMMAND_PALETTE_COMMAND
 }
 
-export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
+function createOpencodeModeStack(keymap: OpenTuiKeymap) {
   keymap.setData(OPENCODE_MODE_KEY, OPENCODE_BASE_MODE)
 
   const offFields = keymap.registerLayerFields({

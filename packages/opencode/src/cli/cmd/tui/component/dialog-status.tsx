@@ -5,8 +5,6 @@ import { useDialog } from "@tui/ui/dialog"
 import { useSync } from "@tui/context/sync"
 import { For, Match, Switch, Show, createMemo } from "solid-js"
 
-export type DialogStatusProps = {}
-
 export function DialogStatus() {
   const sync = useSync()
   const { theme } = useTheme()
