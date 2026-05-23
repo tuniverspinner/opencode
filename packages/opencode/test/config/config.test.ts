@@ -128,6 +128,7 @@ const clear = (wait = false) => Effect.runPromise(clearEffect(wait))
 // Get managed config directory from environment (set in preload.ts)
 const managedConfigDir = process.env.OPENCODE_TEST_MANAGED_CONFIG_DIR!
 const originalTestToken = process.env.TEST_TOKEN
+const originalConsoleToken = process.env.OPENCODE_CONSOLE_TOKEN
 
 beforeEach(async () => {
   await clear(true)
@@ -137,6 +138,8 @@ afterEach(async () => {
   await fs.rm(managedConfigDir, { force: true, recursive: true }).catch(() => {})
   if (originalTestToken === undefined) delete process.env.TEST_TOKEN
   else process.env.TEST_TOKEN = originalTestToken
+  if (originalConsoleToken === undefined) delete process.env.OPENCODE_CONSOLE_TOKEN
+  else process.env.OPENCODE_CONSOLE_TOKEN = originalConsoleToken
   await clear(true)
 })
 
@@ -163,14 +166,14 @@ const withGlobalConfigDir = <A, E, R>(dir: string, effect: Effect.Effect<A, E, R
     Effect.gen(function* () {
       const previous = Global.Path.config
       ;(Global.Path as { config: string }).config = dir
-      yield* clearEffect()
+      yield* clearEffect(true)
       return previous
     }),
     () => effect,
     (previous) =>
       Effect.gen(function* () {
         ;(Global.Path as { config: string }).config = previous
-        yield* clearEffect()
+        yield* clearEffect(true)
       }),
   )
 
@@ -190,10 +193,11 @@ const withConfigTree = <A, E, R>(
 ) =>
   Effect.gen(function* () {
     const root = yield* tmpdirScoped()
+    const global = yield* tmpdirScoped()
     const directory = path.join(root, "project")
     yield* Effect.all(
       [
-        input.global ? writeConfigEffect(root, schemaConfig(input.global)) : undefined,
+        input.global ? writeConfigEffect(global, schemaConfig(input.global)) : undefined,
         input.project ? writeConfigEffect(directory, schemaConfig(input.project)) : undefined,
         input.local ? writeConfigEffect(path.join(directory, ".opencode"), schemaConfig(input.local)) : undefined,
       ].filter(
@@ -201,7 +205,7 @@ const withConfigTree = <A, E, R>(
       ),
       { concurrency: "unbounded" },
     )
-    return yield* withInstanceDir(directory, effect)
+    return yield* withGlobalConfigDir(global, withInstanceDir(directory, effect))
   })
 
 const wellKnown = (input: {
@@ -952,6 +956,25 @@ it.effect("merges plugin arrays from global and local configs", () =>
   ),
 )
 
+it.effect("global config remains global when project config is disabled", () =>
+  withConfigTree(
+    {
+      global: { model: "global/model", plugin: ["global-plugin"] },
+      project: { model: "project/model" },
+      local: { model: "local/model" },
+    },
+    withProcessEnv(
+      "OPENCODE_DISABLE_PROJECT_CONFIG",
+      "true",
+      Effect.gen(function* () {
+        const config = yield* Config.use.get()
+        expect(config.model).toBe("global/model")
+        expect(config.plugin_origins?.find((item) => item.spec === "global-plugin")?.scope).toBe("global")
+      }),
+    ),
+  ),
+)
+
 it.instance("does not error when only custom agent is a subagent", () =>
   Effect.gen(function* () {
     const test = yield* TestInstance
@@ -1128,6 +1151,16 @@ it.instance(
     expect(config.disabled_providers).toEqual(["openai"])
   }),
   { config: { autoupdate: true, disabled_providers: [] } },
+)
+
+it.instance("managed jsonc settings override managed json settings", () =>
+  Effect.gen(function* () {
+    yield* writeManagedSettingsEffect({ model: "managed/json" })
+    yield* writeManagedSettingsEffect({ model: "managed/jsonc" }, "opencode.jsonc")
+
+    const config = yield* Config.use.get()
+    expect(config.model).toBe("managed/jsonc")
+  }),
 )
 
 it.instance(
@@ -1439,14 +1472,16 @@ test("remote well-known config can use FetchHttpClient layer", async () => {
   })
 
   try {
-    await provideTmpdirInstance(() =>
-      Config.Service.use((svc) =>
-        Effect.gen(function* () {
-          const config = yield* svc.get()
-          expect(fetchedUrl).toBe(`${server.url.origin}/.well-known/opencode`)
-          expect(config.mcp?.jira?.enabled).toBe(true)
-        }),
-      ),
+    await provideTmpdirInstance(
+      () =>
+        Config.Service.use((svc) =>
+          Effect.gen(function* () {
+            const config = yield* svc.get()
+            expect(fetchedUrl).toBe(`${server.url.origin}/.well-known/opencode`)
+            expect(config.mcp?.jira?.enabled).toBe(true)
+          }),
+        ),
+      { git: true },
     ).pipe(
       Effect.scoped,
       Effect.provide(
@@ -1488,6 +1523,26 @@ templatedHeaderWellKnown.it.instance("wellknown remote_config supports templated
   }),
 )
 
+const remotePrecedenceWellKnown = wellKnown({
+  config: {
+    mcp: { confluence: { type: "remote", url: "https://confluence.example.com/mcp", enabled: false } },
+  },
+  remoteConfig: { url: "https://config.example.com/{env:TEST_TOKEN}/opencode.json" },
+  remote: {
+    config: { mcp: { confluence: { type: "remote", url: "https://confluence.example.com/mcp", enabled: true } } },
+  },
+})
+
+remotePrecedenceWellKnown.it.instance(
+  "wellknown remote_config url tokens and nested config override embedded config",
+  () =>
+    Effect.gen(function* () {
+      const config = yield* Config.use.get()
+      expect(remotePrecedenceWellKnown.seen.remote).toBe("https://config.example.com/test-token/opencode.json")
+      expect(config.mcp?.confluence?.enabled).toBe(true)
+    }),
+)
+
 const envIsolationWellKnown = wellKnown({
   remoteConfig: {
     url: "https://config.example.com/opencode.json",
@@ -1501,16 +1556,13 @@ const envIsolationWellKnown = wellKnown({
 envIsolationWellKnown.it.instance(
   "wellknown token env substitution does not mutate process env",
   () =>
-    withProcessEnv(
-      "TEST_TOKEN",
-      "preexisting-token",
-      Effect.gen(function* () {
-        const config = yield* Config.use.get()
-        expect(envIsolationWellKnown.seen.authorization).toBe("Bearer test-token")
-        expect(config.username).toBe("test-token")
-        expect(process.env.TEST_TOKEN).toBe("preexisting-token")
-      }),
-    ),
+    Effect.gen(function* () {
+      process.env.TEST_TOKEN = "preexisting-token"
+      const config = yield* Config.use.get()
+      expect(envIsolationWellKnown.seen.authorization).toBe("Bearer test-token")
+      expect(config.username).toBe("test-token")
+      expect(process.env.TEST_TOKEN).toBe("preexisting-token")
+    }),
   { git: true, config: { username: "{env:TEST_TOKEN}" } },
 )
 
