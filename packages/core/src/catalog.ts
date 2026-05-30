@@ -145,7 +145,7 @@ export const layer = Layer.effect(
       editor: (draft) => {
         const result: Editor = {
           provider: {
-            list: () => globalThis.Array.from(draft.providers.values()) as ProviderRecord[],
+            list: () => Array.fromIterable(draft.providers.values()) as ProviderRecord[],
             get: (providerID) => draft.providers.get(providerID),
             update: (providerID, fn) => {
               let current = draft.providers.get(providerID)
@@ -215,11 +215,11 @@ export const layer = Layer.effect(
         }),
 
         all: Effect.fn("CatalogV2.provider.all")(function* () {
-          return globalThis.Array.from(state.get().providers.values()).map((record) => record.provider)
+          return Array.fromIterable(state.get().providers.values()).map((record) => record.provider)
         }),
 
         available: Effect.fn("CatalogV2.provider.available")(function* () {
-          return globalThis.Array.from(state.get().providers.values())
+          return Array.fromIterable(state.get().providers.values())
             .map((record) => record.provider)
             .filter((provider) => provider.enabled)
         }),
@@ -235,8 +235,8 @@ export const layer = Layer.effect(
 
         all: Effect.fn("CatalogV2.model.all")(function* () {
           return pipe(
-            globalThis.Array.from(state.get().providers.values()),
-            Array.flatMap((record) => globalThis.Array.from(record.models.values())),
+            Array.fromIterable(state.get().providers.values()),
+            Array.flatMap((record) => Array.fromIterable(record.models.values())),
             Array.map(resolve),
             Array.sortWith((item) => item.time.released.epochMilliseconds, Order.flip(Order.Number)),
           )
@@ -273,7 +273,7 @@ export const layer = Layer.effect(
           }
 
           const candidates = pipe(
-            globalThis.Array.from(record.models.values()),
+            Array.fromIterable(record.models.values()),
             Array.filter(
               (model) =>
                 model.providerID === providerID &&
