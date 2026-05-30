@@ -31,7 +31,7 @@ it.live("headerTimeout does not abort delayed SSE body after headers arrive", ()
   provideTmpdirServer(
     ({ llm }) =>
       Effect.gen(function* () {
-        yield* llm.push(reply().wait(Bun.sleep(250)).text("late").stop())
+        yield* llm.push(reply().wait(deferredSleep(250)).text("late").stop())
 
         const provider = yield* Provider.Service
         const model = yield* provider.getModel(ProviderID.make("test"), ModelID.make("test-model"))
@@ -63,7 +63,7 @@ it.live("chunkTimeout raises a response stream error when SSE body stalls", () =
   provideTmpdirServer(
     ({ llm }) =>
       Effect.gen(function* () {
-        yield* llm.push(reply().wait(Bun.sleep(250)).text("late").stop())
+        yield* llm.push(reply().wait(deferredSleep(250)).text("late").stop())
 
         const provider = yield* Provider.Service
         const model = yield* provider.getModel(ProviderID.make("test"), ModelID.make("test-model"))
@@ -189,6 +189,12 @@ function providerConfig(url: string, options: Record<string, unknown> = {}) {
         options: { ...config.provider.test.options, ...options },
       },
     },
+  }
+}
+
+function deferredSleep(ms: number): PromiseLike<void> {
+  return {
+    then: (resolve, reject) => Bun.sleep(ms).then(resolve, reject),
   }
 }
 
