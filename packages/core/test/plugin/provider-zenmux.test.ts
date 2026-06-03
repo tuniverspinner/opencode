@@ -46,7 +46,7 @@ describe("ZenmuxPlugin", () => {
       yield* transform((catalog) => {
         const item = provider("zenmux", {
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://zenmux.ai/api/v1" },
-          options: { headers: { Existing: "value" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "value" }, body: {}, },
         })
         catalog.provider.update(item.id, (draft) => {
           draft.endpoint = item.endpoint
@@ -74,7 +74,6 @@ describe("ZenmuxPlugin", () => {
           options: {
             headers: { "HTTP-Referer": "https://example.com/", "X-Title": "custom-title" },
             body: {},
-            aisdk: { provider: {}, request: {} },
           },
         })
         catalog.provider.update(item.id, (draft) => {
@@ -101,7 +100,6 @@ describe("ZenmuxPlugin", () => {
           options: {
             headers: { "HTTP-Referer": "https://example.com/", "X-Title": "custom-title" },
             body: {},
-            aisdk: { provider: {}, request: {} },
           },
         })
         catalog.provider.update(item.id, (draft) => {

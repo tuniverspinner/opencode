@@ -2730,14 +2730,6 @@ export type ModelV2Info = {
     body: {
       [key: string]: unknown
     }
-    aisdk: {
-      provider: {
-        [key: string]: unknown
-      }
-      request: {
-        [key: string]: unknown
-      }
-    }
     variant?: string
   }
   variants: Array<{
@@ -2747,14 +2739,6 @@ export type ModelV2Info = {
     }
     body: {
       [key: string]: unknown
-    }
-    aisdk: {
-      provider: {
-        [key: string]: unknown
-      }
-      request: {
-        [key: string]: unknown
-      }
     }
   }>
   time: {
@@ -3676,14 +3660,6 @@ export type ProviderV2Info = {
     body: {
       [key: string]: unknown
     }
-    aisdk: {
-      provider: {
-        [key: string]: unknown
-      }
-      request: {
-        [key: string]: unknown
-      }
-    }
   }
 }
 
@@ -3789,14 +3765,6 @@ export type ModelV2Info1 = {
     body: {
       [key: string]: unknown
     }
-    aisdk: {
-      provider: {
-        [key: string]: unknown
-      }
-      request: {
-        [key: string]: unknown
-      }
-    }
     variant?: string
   }
   variants: Array<{
@@ -3806,14 +3774,6 @@ export type ModelV2Info1 = {
     }
     body: {
       [key: string]: unknown
-    }
-    aisdk: {
-      provider: {
-        [key: string]: unknown
-      }
-      request: {
-        [key: string]: unknown
-      }
     }
   }>
   time: {

@@ -18,12 +18,12 @@ export const AzurePlugin = PluginV2.define({
         for (const item of evt.provider.list()) {
           if (item.provider.endpoint.type !== "aisdk") continue
           if (item.provider.endpoint.package !== "@ai-sdk/azure") continue
-          const configured = item.provider.options.aisdk.provider.resourceName
+          const configured = item.provider.options.body.resourceName
           const resourceName =
             typeof configured === "string" && configured.trim() !== "" ? configured : process.env.AZURE_RESOURCE_NAME
           if (!resourceName) continue
           evt.provider.update(item.provider.id, (provider) => {
-            provider.options.aisdk.provider.resourceName = resourceName
+            provider.options.body.resourceName = resourceName
           })
         }
       }),
@@ -63,7 +63,7 @@ export const AzureCognitiveServicesPlugin = PluginV2.define({
           if (item.provider.endpoint.package !== "@ai-sdk/openai-compatible") continue
           if (!item.provider.id.includes("azure-cognitive-services")) continue
           evt.provider.update(item.provider.id, (provider) => {
-            provider.options.aisdk.provider.baseURL = `https://${resourceName}.cognitiveservices.azure.com/openai`
+            provider.options.body.baseURL = `https://${resourceName}.cognitiveservices.azure.com/openai`
           })
         }
       }),

@@ -7,10 +7,6 @@ import { ModelV2 } from "../model"
 export class Options extends Schema.Class<Options>("ConfigV2.Provider.Options")({
   headers: Schema.Record(Schema.String, Schema.String).pipe(Schema.optional),
   body: Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.optional),
-  aisdk: Schema.Struct({
-    provider: Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.optional),
-    request: Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.optional),
-  }).pipe(Schema.optional),
 }) {}
 
 class Cache extends Schema.Class<Cache>("ConfigV2.Model.Cost.Cache")({

@@ -29,8 +29,8 @@ describe("GoogleVertexAnthropicPlugin", () => {
             }),
           )
           const provider = yield* catalog.provider.get(ProviderV2.ID.make("google-vertex-anthropic"))
-          expect(provider.options.aisdk.provider.project).toBe("cloud-project")
-          expect(provider.options.aisdk.provider.location).toBe("cloud-location")
+          expect(provider.options.body.project).toBe("cloud-project")
+          expect(provider.options.body.location).toBe("cloud-location")
         }),
     ),
   )
@@ -45,13 +45,13 @@ describe("GoogleVertexAnthropicPlugin", () => {
         yield* transform((catalog) =>
           catalog.provider.update(ProviderV2.ID.make("google-vertex-anthropic"), (provider) => {
             provider.endpoint = { type: "aisdk", package: "@ai-sdk/google-vertex/anthropic" }
-            provider.options.aisdk.provider.project = "configured-project"
-            provider.options.aisdk.provider.location = "configured-location"
+            provider.options.body.project = "configured-project"
+            provider.options.body.location = "configured-location"
           }),
         )
         const provider = yield* catalog.provider.get(ProviderV2.ID.make("google-vertex-anthropic"))
-        expect(provider.options.aisdk.provider.project).toBe("configured-project")
-        expect(provider.options.aisdk.provider.location).toBe("configured-location")
+        expect(provider.options.body.project).toBe("configured-project")
+        expect(provider.options.body.location).toBe("configured-location")
       }),
     ),
   )

@@ -174,7 +174,7 @@ describe("CloudflareWorkersAIPlugin", () => {
         yield* transform((catalog) =>
           catalog.provider.update(ProviderV2.ID.make("cloudflare-workers-ai"), (provider) => {
             provider.endpoint = { type: "aisdk", package: "test-provider" }
-            provider.options.aisdk.provider.accountId = "configured-acct"
+            provider.options.body.accountId = "configured-acct"
           }),
         )
         expect((yield* catalog.provider.get(ProviderV2.ID.make("cloudflare-workers-ai"))).endpoint).toEqual({

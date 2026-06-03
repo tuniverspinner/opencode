@@ -26,7 +26,7 @@ describe("KiloPlugin", () => {
       yield* transform((catalog) => {
         const kilo = provider("kilo", {
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://api.kilo.ai/api/gateway" },
-          options: { headers: { Existing: "value" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "value" }, body: {}, },
         })
         catalog.provider.update(kilo.id, (draft) => {
           draft.endpoint = kilo.endpoint

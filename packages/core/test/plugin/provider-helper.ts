@@ -65,10 +65,6 @@ export function provider(providerID: string, options?: Partial<ProviderV2.Info>)
     options: {
       headers: {},
       body: {},
-      aisdk: {
-        provider: {},
-        request: {},
-      },
       ...options?.options,
     },
   })
@@ -86,10 +82,6 @@ export function model(providerID: string, modelID: string, options?: Partial<Mod
     options: {
       headers: {},
       body: {},
-      aisdk: {
-        provider: {},
-        request: {},
-      },
       ...options?.options,
     },
   })

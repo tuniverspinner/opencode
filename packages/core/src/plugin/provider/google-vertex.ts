@@ -66,16 +66,16 @@ export const GoogleVertexPlugin = PluginV2.define({
             !item.provider.endpoint.package.includes("@ai-sdk/openai-compatible")
           )
             continue
-          const project = resolveProject(item.provider.options.aisdk.provider)
-          const location = String(resolveLocation(item.provider.options.aisdk.provider))
+          const project = resolveProject(item.provider.options.body)
+          const location = String(resolveLocation(item.provider.options.body))
           evt.provider.update(item.provider.id, (provider) => {
-            if (project) provider.options.aisdk.provider.project = project
-            provider.options.aisdk.provider.location = location
+            if (project) provider.options.body.project = project
+            provider.options.body.location = location
             if (provider.endpoint.type === "aisdk" && provider.endpoint.url) {
               provider.endpoint.url = replaceVertexVars(provider.endpoint.url, project, location)
             }
             if (provider.endpoint.type === "aisdk" && provider.endpoint.package.includes("@ai-sdk/openai-compatible")) {
-              provider.options.aisdk.provider.fetch = authFetch(provider.options.aisdk.provider.fetch)
+              provider.options.body.fetch = authFetch(provider.options.body.fetch)
             }
           })
         }
@@ -114,18 +114,18 @@ export const GoogleVertexAnthropicPlugin = PluginV2.define({
           if (item.provider.endpoint.type !== "aisdk") continue
           if (item.provider.endpoint.package !== "@ai-sdk/google-vertex/anthropic") continue
           const project =
-            item.provider.options.aisdk.provider.project ??
+            item.provider.options.body.project ??
             process.env.GOOGLE_CLOUD_PROJECT ??
             process.env.GCP_PROJECT ??
             process.env.GCLOUD_PROJECT
           const location =
-            item.provider.options.aisdk.provider.location ??
+            item.provider.options.body.location ??
             process.env.GOOGLE_CLOUD_LOCATION ??
             process.env.VERTEX_LOCATION ??
             "global"
           evt.provider.update(item.provider.id, (provider) => {
-            if (project) provider.options.aisdk.provider.project = project
-            provider.options.aisdk.provider.location = location
+            if (project) provider.options.body.project = project
+            provider.options.body.location = location
           })
         }
       }),

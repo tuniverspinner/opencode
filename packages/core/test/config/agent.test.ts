@@ -109,8 +109,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
                     steps: 12,
                     options: {
                       headers: { first: "one", shared: "first" },
-                      body: { enabled: true },
-                      aisdk: { provider: { profile: "review" }, request: { effort: "medium" } },
+                      body: { enabled: true, profile: "review", effort: "medium" },
                     },
                   },
                 },
@@ -123,8 +122,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
                   reviewer: {
                     options: {
                       headers: { shared: "last", second: "two" },
-                      body: { retries: 2 },
-                      aisdk: { request: { effort: "high" } },
+                      body: { retries: 2, effort: "high" },
                     },
                   },
                 },
@@ -151,8 +149,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
       })
       expect(reviewer.options).toEqual({
         headers: { first: "one", shared: "last", second: "two" },
-        body: { enabled: true, retries: 2 },
-        aisdk: { provider: { profile: "review" }, request: { effort: "high" } },
+        body: { enabled: true, profile: "review", retries: 2, effort: "high" },
       })
     }),
   )

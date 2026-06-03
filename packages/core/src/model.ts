@@ -85,10 +85,6 @@ export class Info extends Schema.Class<Info>("ModelV2.Info")({
       options: {
         headers: {},
         body: {},
-        aisdk: {
-          provider: {},
-          request: {},
-        },
       },
       variants: [],
       time: {

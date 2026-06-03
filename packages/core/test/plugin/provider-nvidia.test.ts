@@ -26,7 +26,7 @@ describe("NvidiaPlugin", () => {
       yield* transform((catalog) => {
         const nvidia = provider("nvidia", {
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://integrate.api.nvidia.com/v1" },
-          options: { headers: { Existing: "value" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "value" }, body: {}, },
         })
         catalog.provider.update(nvidia.id, (draft) => {
           draft.endpoint = nvidia.endpoint
@@ -53,7 +53,7 @@ describe("NvidiaPlugin", () => {
       yield* transform((catalog) => {
         const item = provider("nvidia", {
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://integrate.api.nvidia.com/v1" },
-          options: { headers: {}, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: {}, body: {}, },
         })
         catalog.provider.update(item.id, (draft) => {
           draft.endpoint = item.endpoint
@@ -80,8 +80,7 @@ describe("NvidiaPlugin", () => {
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://integrate.api.nvidia.com/v1" },
           options: {
             headers: { "X-BILLING-INVOKE-ORIGIN": "CustomOrigin" },
-            body: {},
-            aisdk: { provider: { baseURL: "https://integrate.api.nvidia.com/v1" }, request: {} },
+            body: { baseURL: "https://integrate.api.nvidia.com/v1" },
           },
         })
         catalog.provider.update(item.id, (draft) => {

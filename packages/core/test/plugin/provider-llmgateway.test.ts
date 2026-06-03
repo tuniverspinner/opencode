@@ -27,7 +27,7 @@ describe("LLMGatewayPlugin", () => {
         const llmgateway = provider("llmgateway", {
           enabled: { via: "env", name: "LLMGATEWAY_API_KEY" },
           endpoint: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://api.llmgateway.io/v1" },
-          options: { headers: { Existing: "value" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "value" }, body: {}, },
         })
         catalog.provider.update(llmgateway.id, (draft) => {
           draft.enabled = llmgateway.enabled

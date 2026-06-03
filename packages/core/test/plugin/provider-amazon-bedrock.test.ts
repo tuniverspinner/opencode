@@ -30,8 +30,7 @@ describe("AmazonBedrockPlugin", () => {
           endpoint: { type: "aisdk", package: "@ai-sdk/amazon-bedrock" },
           options: {
             headers: {},
-            body: {},
-            aisdk: { provider: { endpoint: "https://bedrock.example" }, request: {} },
+            body: { endpoint: "https://bedrock.example" },
           },
         })
         catalog.provider.update(bedrock.id, (item) => {
@@ -45,7 +44,7 @@ describe("AmazonBedrockPlugin", () => {
         package: "@ai-sdk/amazon-bedrock",
         url: "https://bedrock.example",
       })
-      expect(result.options.aisdk.provider.endpoint).toBeUndefined()
+      expect(result.options.body.endpoint).toBeUndefined()
     }),
   )
 

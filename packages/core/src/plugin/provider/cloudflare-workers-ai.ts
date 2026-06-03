@@ -16,7 +16,7 @@ export const CloudflareWorkersAIPlugin = PluginV2.define({
         evt.provider.update(item.provider.id, (provider) => {
           if (provider.endpoint.type !== "aisdk") return
           if (provider.endpoint.url) return
-          const accountId = resolveAccountId(provider.options.aisdk.provider)
+          const accountId = resolveAccountId(provider.options.body)
           if (accountId) provider.endpoint.url = workersEndpoint(accountId)
         })
       }),

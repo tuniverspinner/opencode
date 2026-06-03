@@ -56,11 +56,11 @@ export const AmazonBedrockPlugin = PluginV2.define({
           if (item.provider.endpoint.package !== "@ai-sdk/amazon-bedrock") continue
           evt.provider.update(item.provider.id, (provider) => {
             if (provider.endpoint.type !== "aisdk") return
-            if (typeof provider.options.aisdk.provider.endpoint !== "string") return
+            if (typeof provider.options.body.endpoint !== "string") return
             // The AI SDK expects a base URL, but users configure Bedrock private/VPC
             // endpoints as `endpoint`; move it into the catalog endpoint URL once.
-            provider.endpoint.url = provider.options.aisdk.provider.endpoint
-            delete provider.options.aisdk.provider.endpoint
+            provider.endpoint.url = provider.options.body.endpoint
+            delete provider.options.body.endpoint
           })
         }
       }),

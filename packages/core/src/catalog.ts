@@ -112,13 +112,6 @@ export const layer = Layer.effect(
           ...provider.options.body,
           ...model.options.body,
         },
-        aisdk: {
-          provider: {
-            ...provider.options.aisdk.provider,
-            ...model.options.aisdk.provider,
-          },
-          request: model.options.aisdk.request,
-        },
         variant: model.options.variant,
       }
       return new ModelV2.Info({
@@ -135,9 +128,9 @@ export const layer = Layer.effect(
     }
 
     const normalizeEndpoint = (item: Draft<ProviderV2.Info> | Draft<ModelV2.Info>) => {
-      if (item.endpoint.type !== "aisdk" || typeof item.options.aisdk.provider.baseURL !== "string") return
-      item.endpoint.url = item.options.aisdk.provider.baseURL
-      delete item.options.aisdk.provider.baseURL
+      if (item.endpoint.type !== "aisdk" || typeof item.options.body.baseURL !== "string") return
+      item.endpoint.url = item.options.body.baseURL
+      delete item.options.body.baseURL
     }
 
     const state = State.create<Data, Editor>({

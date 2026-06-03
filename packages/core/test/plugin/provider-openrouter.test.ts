@@ -27,7 +27,7 @@ describe("OpenRouterPlugin", () => {
       yield* transform((catalog) => {
         const openrouter = provider("openrouter", {
           endpoint: { type: "aisdk", package: "@openrouter/ai-sdk-provider" },
-          options: { headers: { Existing: "value" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "value" }, body: {}, },
         })
         catalog.provider.update(openrouter.id, (item) => {
           item.endpoint = openrouter.endpoint

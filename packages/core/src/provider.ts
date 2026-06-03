@@ -72,10 +72,6 @@ export type Endpoint = typeof Endpoint.Type
 export const Options = Schema.Struct({
   headers: Schema.Record(Schema.String, Schema.String),
   body: Schema.Record(Schema.String, Schema.Any),
-  aisdk: Schema.Struct({
-    provider: Schema.Record(Schema.String, Schema.Any),
-    request: Schema.Record(Schema.String, Schema.Any),
-  }),
 })
 export type Options = typeof Options.Type
 
@@ -113,10 +109,6 @@ export class Info extends Schema.Class<Info>("ProviderV2.Info")({
       options: {
         headers: {},
         body: {},
-        aisdk: {
-          provider: {},
-          request: {},
-        },
       },
     }
   }

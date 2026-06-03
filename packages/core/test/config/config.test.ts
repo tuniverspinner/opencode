@@ -1,10 +1,12 @@
 import path from "path"
 import fs from "fs/promises"
 import { describe, expect } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Schema } from "effect"
+import { FastCheck } from "effect/testing"
 import { Config } from "@opencode-ai/core/config"
 import { ConfigProvider } from "@opencode-ai/core/config/provider"
 import { ConfigMigrateV1 } from "@opencode-ai/core/v1/config/migrate"
+import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Global } from "@opencode-ai/core/global"
 import { Location } from "@opencode-ai/core/location"
@@ -45,10 +47,6 @@ const provider = {
   options: {
     headers: {},
     body: {},
-    aisdk: {
-      provider: {},
-      request: {},
-    },
   },
   models: {},
 }
@@ -59,6 +57,17 @@ describe("Config", () => {
       expect(ConfigMigrateV1.isV1({ snapshot: false })).toBe(true)
       expect(ConfigMigrateV1.isV1({ snapshot: false, agents: {} })).toBe(true)
       expect(ConfigMigrateV1.isV1({ shell: "/bin/zsh", model: "anthropic/claude" })).toBe(false)
+    }),
+  )
+
+  it.effect("migrates arbitrary v1 configuration into valid v2 configuration", () =>
+    Effect.sync(() => {
+      FastCheck.assert(
+        FastCheck.property(Schema.toArbitrary(ConfigV1.Info), (info) => {
+          Schema.decodeUnknownSync(Config.Info)(ConfigMigrateV1.migrate(info), { errors: "all" })
+        }),
+        { numRuns: 100 },
+      )
     }),
   )
 
@@ -188,7 +197,7 @@ describe("Config", () => {
                     variant: "high",
                     options: {
                       headers: { "x-agent": "reviewer" },
-                      aisdk: { request: { reasoningEffort: "high" } },
+                      body: { reasoningEffort: "high" },
                     },
                     description: "Review changes for correctness",
                     system: "Find regressions.",
@@ -271,7 +280,7 @@ describe("Config", () => {
               variant: "high",
               options: {
                 headers: { "x-agent": "reviewer" },
-                aisdk: { request: { reasoningEffort: "high" } },
+                body: { reasoningEffort: "high" },
               },
               description: "Review changes for correctness",
               system: "Find regressions.",
@@ -379,6 +388,24 @@ describe("Config", () => {
                 skills: { paths: ["./skills"], urls: ["https://example.com/.well-known/skills/"] },
                 reference: { docs: { path: "../docs" } },
                 attachment: { image: { auto_resize: false, max_width: 1200 } },
+                provider: {
+                  custom: {
+                    options: { apiKey: "secret" },
+                    models: {
+                      model: {
+                        options: { reasoningEffort: "high" },
+                        variants: { fast: { temperature: 0.2 } },
+                      },
+                    },
+                  },
+                  openai: {
+                    npm: "@ai-sdk/openai",
+                    options: { apiKey: "secret", organization: "org" },
+                    models: {
+                      model: { options: { reasoningEffort: "high", serviceTier: "priority" } },
+                    },
+                  },
+                },
                 compaction: { auto: true, tail_turns: 3, preserve_recent_tokens: 2000, reserved: 10000 },
                 experimental: { mcp_timeout: 5000 },
                 mcp: {
@@ -420,6 +447,19 @@ describe("Config", () => {
             expect(documents[0]?.info.skills).toEqual(["./skills", "https://example.com/.well-known/skills/"])
             expect(documents[0]?.info.references).toEqual({ docs: { path: "../docs" } })
             expect(documents[0]?.info.attachments).toEqual({ image: { auto_resize: false, max_width: 1200 } })
+            expect(documents[0]?.info.providers?.custom).toMatchObject({
+              options: { body: { apiKey: "secret" } },
+              models: {
+                model: {
+                  options: { body: { reasoningEffort: "high" } },
+                  variants: [{ id: "fast", body: { temperature: 0.2 } }],
+                },
+              },
+            })
+            expect(documents[0]?.info.providers?.openai).toMatchObject({
+              options: { headers: { Authorization: "Bearer secret", "OpenAI-Organization": "org" } },
+              models: { model: { options: { body: { reasoning_effort: "high", service_tier: "priority" } } } },
+            })
             expect(documents[0]?.info.compaction).toEqual({
               auto: true,
               prune: undefined,

@@ -33,8 +33,8 @@ function context(
           id: providerID,
           enabled: provider.enabled,
           apiKey:
-            typeof provider.options.aisdk.provider.apiKey === "string"
-              ? provider.options.aisdk.provider.apiKey
+            typeof provider.options.body.apiKey === "string"
+              ? provider.options.body.apiKey
               : undefined,
         })
       },

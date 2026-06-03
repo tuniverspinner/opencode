@@ -34,10 +34,6 @@ export class Info extends Schema.Class<Info>("AgentV2.Info")({
       options: {
         headers: {},
         body: {},
-        aisdk: {
-          provider: {},
-          request: {},
-        },
       },
       mode: "all",
       hidden: false,

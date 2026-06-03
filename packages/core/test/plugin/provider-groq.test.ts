@@ -89,11 +89,7 @@ describe("GroqPlugin", () => {
           },
           options: {
             headers: {},
-            body: {},
-            aisdk: {
-              provider: { apiKey: "test" },
-              request: {},
-            },
+            body: { apiKey: "test" },
           },
         }),
       )

@@ -25,8 +25,8 @@ describe("AzureCognitiveServicesPlugin", () => {
           package: "@ai-sdk/openai-compatible",
           url: "https://cognitive.cognitiveservices.azure.com/openai",
         })
-        expect(result.options.aisdk.provider.baseURL).toBeUndefined()
-        expect(result.options.aisdk.provider.resourceName).toBeUndefined()
+        expect(result.options.body.baseURL).toBeUndefined()
+        expect(result.options.body.resourceName).toBeUndefined()
       }),
     ),
   )
@@ -52,9 +52,9 @@ describe("AzureCognitiveServicesPlugin", () => {
         })
         const azure = yield* catalog.provider.get(ProviderV2.ID.make("azure-cognitive-services"))
         const openai = yield* catalog.provider.get(ProviderV2.ID.openai)
-        expect(azure.options.aisdk.provider.baseURL).toBeUndefined()
+        expect(azure.options.body.baseURL).toBeUndefined()
         expect(azure.endpoint).toEqual({ type: "aisdk", package: "@ai-sdk/openai-compatible" })
-        expect(openai.options.aisdk.provider.baseURL).toBeUndefined()
+        expect(openai.options.body.baseURL).toBeUndefined()
         expect(openai.endpoint).toEqual({ type: "aisdk", package: "test-provider" })
       }),
     ),

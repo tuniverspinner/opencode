@@ -27,8 +27,6 @@ export const Plugin = PluginV2.define({
             if (item.options !== undefined) {
               Object.assign(provider.options.headers, item.options.headers ?? {})
               Object.assign(provider.options.body, item.options.body ?? {})
-              Object.assign(provider.options.aisdk.provider, item.options.aisdk?.provider ?? {})
-              Object.assign(provider.options.aisdk.request, item.options.aisdk?.request ?? {})
             }
           })
 
@@ -48,8 +46,6 @@ export const Plugin = PluginV2.define({
               if (config.options !== undefined) {
                 Object.assign(model.options.headers, config.options.headers ?? {})
                 Object.assign(model.options.body, config.options.body ?? {})
-                Object.assign(model.options.aisdk.provider, config.options.aisdk?.provider ?? {})
-                Object.assign(model.options.aisdk.request, config.options.aisdk?.request ?? {})
                 if (config.options.variant !== undefined) model.options.variant = config.options.variant
               }
               if (config.variants !== undefined) {
@@ -60,17 +56,11 @@ export const Plugin = PluginV2.define({
                       id: variant.id,
                       headers: {},
                       body: {},
-                      aisdk: {
-                        provider: {},
-                        request: {},
-                      },
                     }
                     model.variants.push(existing)
                   }
                   Object.assign(existing.headers, variant.headers ?? {})
                   Object.assign(existing.body, variant.body ?? {})
-                  Object.assign(existing.aisdk.provider, variant.aisdk?.provider ?? {})
-                  Object.assign(existing.aisdk.request, variant.aisdk?.request ?? {})
                 }
               }
               if (config.cost !== undefined) {

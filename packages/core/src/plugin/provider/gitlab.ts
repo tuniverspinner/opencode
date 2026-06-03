@@ -37,12 +37,12 @@ export const GitLabPlugin = PluginV2.define({
         if (evt.model.apiID.startsWith("duo-workflow-")) {
           const gitlab = yield* Effect.promise(() => import("gitlab-ai-provider")).pipe(Effect.orDie)
           const workflowRef =
-            typeof evt.model.options.aisdk.request.workflowRef === "string"
-              ? evt.model.options.aisdk.request.workflowRef
+            typeof evt.model.options.body.workflowRef === "string"
+              ? evt.model.options.body.workflowRef
               : undefined
           const workflowDefinition =
-            typeof evt.model.options.aisdk.request.workflowDefinition === "string"
-              ? evt.model.options.aisdk.request.workflowDefinition
+            typeof evt.model.options.body.workflowDefinition === "string"
+              ? evt.model.options.body.workflowDefinition
               : undefined
           const language = evt.sdk.workflowChat(
             gitlab.isWorkflowModel(evt.model.apiID) ? evt.model.apiID : "duo-workflow",

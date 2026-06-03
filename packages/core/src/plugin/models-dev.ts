@@ -43,10 +43,6 @@ function variants(model: ModelsDev.Model) {
     id: ModelV2.VariantID.make(id),
     headers: { ...(item.provider?.headers ?? {}) },
     body: { ...(item.provider?.body ?? {}) },
-    aisdk: {
-      provider: {},
-      request: {},
-    },
   }))
 }
 

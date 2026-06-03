@@ -37,8 +37,6 @@ export const Plugin = PluginV2.define({
             if (item.options !== undefined) {
               Object.assign(agent.options.headers, item.options.headers ?? {})
               Object.assign(agent.options.body, item.options.body ?? {})
-              Object.assign(agent.options.aisdk.provider, item.options.aisdk?.provider ?? {})
-              Object.assign(agent.options.aisdk.request, item.options.aisdk?.request ?? {})
             }
             if (item.system !== undefined) agent.system = item.system
             if (item.description !== undefined) agent.description = item.description

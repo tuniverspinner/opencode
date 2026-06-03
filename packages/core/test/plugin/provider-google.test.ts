@@ -58,11 +58,7 @@ describe("GooglePlugin", () => {
           },
           options: {
             headers: {},
-            body: {},
-            aisdk: {
-              provider: { apiKey: "test" },
-              request: {},
-            },
+            body: { apiKey: "test" },
           },
         }),
       )

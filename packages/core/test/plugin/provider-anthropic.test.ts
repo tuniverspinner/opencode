@@ -16,7 +16,7 @@ describe("AnthropicPlugin", () => {
       yield* transform((catalog) => {
         const item = provider("anthropic", {
           endpoint: { type: "aisdk", package: "@ai-sdk/anthropic" },
-          options: { headers: { Existing: "1" }, body: {}, aisdk: { provider: {}, request: {} } },
+          options: { headers: { Existing: "1" }, body: {}, },
         })
         catalog.provider.update(item.id, (draft) => {
           draft.endpoint = item.endpoint
