@@ -6,10 +6,14 @@ type V1PartData<Data extends SessionV1.Part = SessionV1.Part> = Data extends Ses
   ? Omit<Data, "id" | "sessionID" | "messageID">
   : never
 
+export type ModelData = Omit<V1PartData<SessionV1.ToolPart>, "state"> & {
+  state: Omit<SessionV1.ToolStateCompleted, "metadata">
+}
+
 export const THRESHOLD = 64 * 1024
 
 // Strip UI-only metadata only when the stored prompt projection benefits.
-export function create(data: unknown): V1PartData | null {
+export function create(data: unknown): ModelData | null {
   if (!data || typeof data !== "object") return null
   if (!("type" in data) || data.type !== "tool") return null
   if (!("state" in data) || !data.state || typeof data.state !== "object") return null
@@ -18,5 +22,5 @@ export function create(data: unknown): V1PartData | null {
   const metadata = JSON.stringify(data.state.metadata)
   if (!metadata || Buffer.byteLength(metadata) <= THRESHOLD) return null
   const { metadata: _, ...state } = data.state
-  return { ...data, state } as V1PartData
+  return { ...data, state } as ModelData
 }

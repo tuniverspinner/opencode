@@ -762,6 +762,17 @@ describe("session.compaction.prune", () => {
                 expect(Object.getOwnPropertyDescriptor(small.state, "metadata")?.get).toBeUndefined()
                 expect(small.state.metadata).toEqual({ description: "small" })
               }
+
+              part.state.metadata = { output: "x".repeat(200_000), description: "large again" }
+              yield* ssn.updatePart(part)
+              const largeAgain = (yield* MessageV2.filterCompactedEffect(info.id))
+                .flatMap((msg) => msg.parts)
+                .find((item) => item.id === part.id)
+              expect(largeAgain?.type).toBe("tool")
+              if (largeAgain?.type === "tool" && largeAgain.state.status === "completed") {
+                expect(Object.getOwnPropertyDescriptor(largeAgain.state, "metadata")?.get).toBeFunction()
+                expect(largeAgain.state.metadata.output).toHaveLength(200_000)
+              }
             }
           }
         }),

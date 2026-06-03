@@ -9,6 +9,7 @@ import type { SessionSchema } from "./schema"
 import type { MessageID, PartID, SessionV1 } from "../v1/session"
 import { WorkspaceV2 } from "../workspace"
 import { Timestamps } from "../database/schema.sql"
+import type { ModelData } from "./model-data"
 
 type SessionMessageData = Omit<(typeof SessionMessage.Message)["Encoded"], "type" | "id">
 type V1MessageData = Omit<SessionV1.Info, "id" | "sessionID">
@@ -86,7 +87,7 @@ export const PartTable = sqliteTable(
     ...Timestamps,
     data: text({ mode: "json" }).notNull().$type<V1PartData>(),
     // Derived prompt projection; data remains canonical.
-    data_model: text({ mode: "json" }).$type<V1PartData>(),
+    data_model: text({ mode: "json" }).$type<ModelData>(),
   },
   (table) => [
     index("part_message_id_id_idx").on(table.message_id, table.id),

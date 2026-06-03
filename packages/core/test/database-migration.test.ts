@@ -86,7 +86,8 @@ describe("DatabaseMigration", () => {
         const large = JSON.stringify({ type: "tool", state: { status: "completed", metadata: { diff: "x".repeat(70_000) } } })
         const unicode = JSON.stringify({ type: "tool", state: { status: "completed", metadata: { diff: "😀".repeat(20_000) } } })
         const small = JSON.stringify({ type: "tool", state: { status: "completed", metadata: { diff: "small" } } })
-        yield* db.run(sql`INSERT INTO part (id, data) VALUES (${"large"}, ${large}), (${"unicode"}, ${unicode}), (${"small"}, ${small})`)
+        const malformed = "{" + "x".repeat(70_000)
+        yield* db.run(sql`INSERT INTO part (id, data) VALUES (${"large"}, ${large}), (${"unicode"}, ${unicode}), (${"small"}, ${small}), (${"malformed"}, ${malformed})`)
 
         yield* DatabaseMigration.applyOnly(db, [partModelDataMigration])
 
@@ -98,6 +99,7 @@ describe("DatabaseMigration", () => {
         expect(yield* db.get(sql`SELECT data_model FROM part WHERE id = ${"unicode"}`)).toEqual({
           data_model: JSON.stringify({ type: "tool", state: { status: "completed" } }),
         })
+        expect(yield* db.get(sql`SELECT data_model FROM part WHERE id = ${"malformed"}`)).toEqual({ data_model: null })
       }),
     )
   })
