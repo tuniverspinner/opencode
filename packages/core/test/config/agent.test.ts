@@ -107,7 +107,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
                     hidden: true,
                     color: "warning",
                     steps: 12,
-                    options: {
+                    request: {
                       headers: { first: "one", shared: "first" },
                       body: { enabled: true, profile: "review", effort: "medium" },
                     },
@@ -120,7 +120,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
               info: decode({
                 agents: {
                   reviewer: {
-                    options: {
+                    request: {
                       headers: { shared: "last", second: "two" },
                       body: { retries: 2, effort: "high" },
                     },
