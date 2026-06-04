@@ -5,11 +5,12 @@ import { isRecord } from "@/util/record"
 import { OpenAIWebSocket } from "./ws"
 
 export const TITLE_HEADER = "x-opencode-title"
+export type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 const log = Log.create({ service: "plugin.openai.ws" })
 
 export interface CreateWebSocketFetchOptions {
-  httpFetch?: typeof globalThis.fetch
+  httpFetch?: Fetch
   url?: string
   connectTimeout?: number
   idleTimeout?: number

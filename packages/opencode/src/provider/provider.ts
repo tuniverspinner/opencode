@@ -38,7 +38,7 @@ const HEADER_TIMEOUT = Symbol.for("opencode.provider.header-timeout")
 
 export function headerTimeoutForFetch(fetch: unknown, timeout: number | false | undefined) {
   if (timeout === false) return undefined
-  if (typeof fetch === "function" && fetch[HEADER_TIMEOUT] === false) return undefined
+  if (typeof fetch === "function" && (fetch as { [HEADER_TIMEOUT]?: false })[HEADER_TIMEOUT] === false) return undefined
   return timeout
 }
 

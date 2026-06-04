@@ -21,7 +21,7 @@ const HEADER_TIMEOUT = Symbol.for("opencode.provider.header-timeout")
 const ALLOWED_MODELS = new Set(["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini"])
 
 export function fetchWithHeaderTimeout(
-  fetch: typeof globalThis.fetch,
+  fetch: OpenAIWebSocketPool.Fetch,
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   timeout: number | false,
@@ -374,7 +374,7 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
   let httpHeaderTimeout: number | false = DEFAULT_HTTP_HEADER_TIMEOUT
   let websocketFetchInstalled = false
   const websocketFetches: Array<ReturnType<typeof OpenAIWebSocketPool.createWebSocketFetch>> = []
-  const httpFetch: typeof globalThis.fetch = (requestInput, init) =>
+  const httpFetch: OpenAIWebSocketPool.Fetch = (requestInput, init) =>
     fetchWithHeaderTimeout(fetch, requestInput, init, httpHeaderTimeout)
 
   return {
