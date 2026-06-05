@@ -37,6 +37,58 @@ The local runner issues one explicit `llm.stream(request)` per provider turn, pr
 
 Projected hosted tools preserve call-side and settlement-side provider metadata separately so settlement and interruption recovery cannot erase continuation identifiers. Provider-native reasoning and provider metadata replay only while the historical assistant model matches the selected continuation model; after a model switch, visible reasoning text remains ordinary assistant text and provider-native metadata is omitted.
 
+## Context Epochs
+
+V2 Sessions persist the exact privileged System Context shown to the model. A Context Epoch owns one immutable baseline plus a model-hidden structured snapshot used to compare independently observed Context Sources. Environment facts, the host-local date, and ambient global/upward-project `AGENTS.md` files are the initial registered sources.
+
+The first complete observation initializes the epoch before any pending prompt becomes model-visible. If initial context is temporarily unavailable, execution stops while the prompt remains pending and retryable. On later provider turns, the runner promotes eligible input first, then reconciles current sources at the safe boundary. Changed context becomes one durable chronological System message, and its event commit advances the epoch snapshot atomically.
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Runner
+  participant Registry as System Context Registry
+  participant Epoch as Context Epoch Store
+  participant History as Session History
+  participant LLM
+
+  Client->>History: Admit prompt
+  Runner->>Registry: Observe initial context
+  Registry-->>Runner: Complete baseline or unavailable
+  Runner->>Epoch: Initialize missing epoch
+  Runner->>History: Promote eligible input
+  Runner->>Registry: Reconcile at safe boundary
+  Registry-->>Runner: Unchanged or chronological update
+  Runner->>Epoch: Advance snapshot atomically with update
+  Runner->>LLM: Baseline + chronological history
+```
+
+Model switches and completed compactions request lazy baseline replacement. A Session move clears the epoch so the destination Location must initialize a complete baseline before promoting more input. Epoch creation is fenced against the authoritative Session Location, preventing an old-Location runner from recreating stale privileged context after a concurrent move.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Missing
+  Missing --> Active: complete initial observation
+  Missing --> Missing: initial context unavailable
+  Active --> Active: reconcile change
+  Active --> ReplacementPending: model switch or compaction
+  ReplacementPending --> Active: complete replacement observation
+  Active --> Missing: Session moves Location
+  ReplacementPending --> Missing: Session moves Location
+```
+
+Ambient project discovery canonicalizes and contains traversal within the project root and honors `OPENCODE_DISABLE_PROJECT_CONFIG`. An unavailable observation preserves the previously admitted value. A confirmed partial instruction removal emits the complete remaining aggregate with explicit supersession text; removing the final instruction emits a revocation message.
+
+Current Context Epoch follow-ups:
+
+- Add configured, remote, and nested instruction sources with explicit precedence and removal semantics.
+- Add durable post-crash activity recovery for promoted or provider-dispatched work.
+- Integrate actual automatic/context-pressure compaction with epoch replacement.
+- Add operational metrics for observation latency, unavailable sources, contention, baseline size, and chronological-update growth.
+- Consider watcher-backed per-file caching only if measurements show direct safe-boundary observation is too expensive.
+- Expose plugin-defined Context Sources only after plugin reload and scoped cleanup semantics are designed.
+- Add clustered Session execution ownership and stale-runtime fencing.
+
 Provider timeout, retry, and watchdog policy is intentionally deferred. The runner does not impose a universal provider-stream inactivity or absolute timeout. A future slice should design configurable policy around provider behavior, durable failure reporting, and local drain-chain release rather than hardcoding one default for every provider.
 
 Inbox delivery is explicit:

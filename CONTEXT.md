@@ -86,4 +86,3 @@ The point immediately before a provider call, after durable input promotion and 
 ## Flagged ambiguities
 
 - Legacy `experimental.chat.system.transform` can mutate the assembled baseline system prompt arbitrarily, but V2 plugins do not yet expose an equivalent hook. Decide separately whether to port it, replace dynamic uses with plugin-defined **Context Sources**, or narrow its semantics.
-- A location change likely starts a new **Context Epoch** so location-dependent instructions and discovery can be rebuilt cleanly, but implementation should verify whether an append-only update is sufficient and meaningfully preserves cache.
