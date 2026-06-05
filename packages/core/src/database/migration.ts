@@ -23,6 +23,7 @@ export function applyOnly(db: Database, input: Migration[]) {
     yield* db.run(
       sql`CREATE TABLE IF NOT EXISTS ${sql.identifier("migration")} (id TEXT PRIMARY KEY, time_completed INTEGER NOT NULL)`,
     )
+    const skipMigrations = !!process.env.OPENCODE_SKIP_MIGRATIONS
     let completed = new Set(
       (yield* db.all<{ id: string }>(sql`SELECT id FROM ${sql.identifier("migration")}`)).map((row) => row.id),
     )
@@ -43,17 +44,31 @@ export function applyOnly(db: Database, input: Migration[]) {
         )
       }
     }
+    if (!skipMigrations) yield* repairKnownSchemaDrift(db, input, completed)
 
     for (const migration of input) {
       if (completed.has(migration.id)) continue
+      if (skipMigrations) continue
       yield* db.transaction((tx) =>
         Effect.gen(function* () {
-          if (!process.env.OPENCODE_SKIP_MIGRATIONS) yield* migration.up(tx)
+          yield* migration.up(tx)
           yield* tx.run(
             sql`INSERT INTO ${sql.identifier("migration")} (id, time_completed) VALUES (${migration.id}, ${Date.now()})`,
           )
         }),
       )
     }
+  })
+}
+
+function repairKnownSchemaDrift(db: Database, input: Migration[], completed: Set<string>) {
+  return Effect.gen(function* () {
+    const sessionMetadata = input.find((migration) => migration.id === "20260511173437_session-metadata")
+    if (!sessionMetadata) return
+    if (!completed.has(sessionMetadata.id)) return
+    if (!(yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${"session"}`))) return
+
+    // Older Drizzle skip-migration runs could record this id without applying its SQL.
+    yield* db.transaction((tx) => sessionMetadata.up(tx))
   })
 }

@@ -426,6 +426,88 @@ describe("DatabaseMigration", () => {
     )
   })
 
+  test("runs session metadata migration after importing older drizzle state", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE session (id text PRIMARY KEY)`)
+        yield* db.run(
+          sql`CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY, hash text NOT NULL, created_at numeric, name text, applied_at TEXT)`,
+        )
+        yield* db.run(sql`
+          INSERT INTO __drizzle_migrations (hash, created_at, name, applied_at)
+          VALUES ('hash', 1, '20260511000411_data_migration_state', ${new Date().toISOString()})
+        `)
+
+        yield* DatabaseMigration.applyOnly(db, [sessionMetadataMigration])
+
+        expect(
+          (yield* db.all<{ name: string }>(sql`PRAGMA table_info(session)`)).map((column) => column.name),
+        ).toContain("metadata")
+        expect(yield* db.all(sql`SELECT id FROM migration ORDER BY id`)).toEqual([
+          { id: "20260511000411_data_migration_state" },
+          { id: "20260511173437_session-metadata" },
+        ])
+      }),
+    )
+  })
+
+  test("repairs imported session metadata migration state when the column is missing", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE session (id text PRIMARY KEY)`)
+        yield* db.run(
+          sql`CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY, hash text NOT NULL, created_at numeric, name text, applied_at TEXT)`,
+        )
+        yield* db.run(sql`
+          INSERT INTO __drizzle_migrations (hash, created_at, name, applied_at)
+          VALUES ('hash', 1, '20260511173437_session-metadata', ${new Date().toISOString()})
+        `)
+
+        yield* DatabaseMigration.applyOnly(db, [sessionMetadataMigration])
+
+        expect(
+          (yield* db.all<{ name: string }>(sql`PRAGMA table_info(session)`)).map((column) => column.name),
+        ).toContain("metadata")
+        expect(yield* db.all(sql`SELECT id FROM migration ORDER BY id`)).toEqual([
+          { id: "20260511173437_session-metadata" },
+        ])
+      }),
+    )
+  })
+
+  test("does not record migrations as complete when migrations are skipped", async () => {
+    const previous = process.env.OPENCODE_SKIP_MIGRATIONS
+    try {
+      await run(
+        Effect.gen(function* () {
+          const db = yield* makeDb
+          yield* db.run(sql`CREATE TABLE session (id text PRIMARY KEY)`)
+
+          process.env.OPENCODE_SKIP_MIGRATIONS = "true"
+          yield* DatabaseMigration.applyOnly(db, [sessionMetadataMigration])
+
+          expect(yield* db.all(sql`SELECT id FROM migration`)).toEqual([])
+          expect(
+            (yield* db.all<{ name: string }>(sql`PRAGMA table_info(session)`)).map((column) => column.name),
+          ).not.toContain("metadata")
+
+          delete process.env.OPENCODE_SKIP_MIGRATIONS
+          yield* DatabaseMigration.applyOnly(db, [sessionMetadataMigration])
+
+          expect(yield* db.all(sql`SELECT id FROM migration`)).toEqual([{ id: "20260511173437_session-metadata" }])
+          expect(
+            (yield* db.all<{ name: string }>(sql`PRAGMA table_info(session)`)).map((column) => column.name),
+          ).toContain("metadata")
+        }),
+      )
+    } finally {
+      if (previous === undefined) delete process.env.OPENCODE_SKIP_MIGRATIONS
+      else process.env.OPENCODE_SKIP_MIGRATIONS = previous
+    }
+  })
+
   test("does not replay a migrated session metadata column", async () => {
     await run(
       Effect.gen(function* () {
