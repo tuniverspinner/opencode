@@ -551,12 +551,15 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
   )
 
   const connected = useConnected()
-  const currentWorktreeWorkspace = createMemo(() => {
+  const currentWorktreePath = createMemo(() => {
     const workspaceID = project.workspace.current()
-    if (!workspaceID) return
-    const workspace = project.workspace.get(workspaceID)
-    if (workspace?.type !== "worktree" || !workspace.directory) return
-    return workspace
+    if (workspaceID) {
+      const workspace = project.workspace.get(workspaceID)
+      if (workspace?.type === "worktree" && workspace.directory) return workspace.directory
+    }
+
+    const paths = project.instance.path()
+    return (paths.worktree === "/" ? undefined : paths.worktree) || paths.directory || undefined
   })
   const appCommands = createMemo(() =>
     [
@@ -598,11 +601,11 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         name: "workspace.copy_path",
         title: "Copy worktree path",
         category: "Workspace",
-        enabled: () => currentWorktreeWorkspace() !== undefined,
+        enabled: () => currentWorktreePath() !== undefined,
         run: async () => {
-          const workspace = currentWorktreeWorkspace()
-          if (!workspace?.directory) return
-          await Clipboard.copy(workspace.directory)
+          const worktreePath = currentWorktreePath()
+          if (!worktreePath) return
+          await Clipboard.copy(worktreePath)
             .then(() => toast.show({ message: "Copied worktree path", variant: "info" }))
             .catch(toast.error)
           dialog.clear()
