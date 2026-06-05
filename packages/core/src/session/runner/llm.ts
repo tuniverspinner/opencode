@@ -3,6 +3,7 @@ import { Cause, DateTime, Effect, FiberSet, Layer, Semaphore, Stream } from "eff
 import { EventV2 } from "../../event"
 import { ModelV2 } from "../../model"
 import { ProviderV2 } from "../../provider"
+import { QuestionV2 } from "../../question"
 import { SessionSchema } from "../schema"
 import { SessionEvent } from "../event"
 import { SessionStore } from "../store"
@@ -13,7 +14,6 @@ import { ToolRegistry } from "../../tool/registry"
 import { SessionRunnerModel } from "./model"
 import { Database } from "../../database/database"
 import { SessionInput } from "../input"
-import { QuestionV2 } from "../../question"
 import { SystemContextRegistry } from "../../system-context-registry"
 import { SessionContextEpoch } from "../context-epoch"
 import { AgentV2 } from "../../agent"
@@ -69,7 +69,7 @@ import { AgentV2 } from "../../agent"
  *   - [ ] Coalesce streamed deltas and add covering projected-history indexes.
  *   - [ ] Update title, summaries, compaction state, and cleanup in bounded background work.
  *
- * Use `llm.stream(request)` for each provider turn. Keep tool execution and continuation here.
+ * Use `llm.stream(request)` for each provider turn. Keep tool execution and activity continuation here.
  * Durable activity recovery remains a separate future slice with an explicit retry policy.
  *
  * The current slice loads V2 history, translates it, resolves a model through a core service, and persists one
@@ -79,6 +79,7 @@ import { AgentV2 } from "../../agent"
 
 // QUESTION: Did this exist previously, or did we add this limit? Does it make sense?
 const MAX_STEPS = 25
+type Promotion = Extract<SessionInput.Delivery, "steer" | "queue">
 
 export const layer = Layer.effect(
   Service,
@@ -97,13 +98,10 @@ export const layer = Layer.effect(
       return session
     })
 
-    const getContext = Effect.fn("SessionRunner.getContext")(function* (sessionID: SessionSchema.ID) {
-      return yield* store.context(sessionID)
-    })
     const failInterruptedTools = Effect.fn("SessionRunner.failInterruptedTools")(function* (
       sessionID: SessionSchema.ID,
     ) {
-      for (const message of yield* getContext(sessionID)) {
+      for (const message of yield* store.context(sessionID)) {
         if (message.type !== "assistant") continue
         for (const tool of message.content) {
           if (tool.type !== "tool" || (tool.state.status !== "pending" && tool.state.status !== "running")) continue
@@ -131,7 +129,7 @@ export const layer = Layer.effect(
 
     const runTurn = Effect.fn("SessionRunner.runTurn")(function* (
       sessionID: SessionSchema.ID,
-      promotion: "steer" | "queue" | undefined,
+      promotion: Promotion | undefined,
     ) {
       const session = yield* getSession(sessionID)
       const initialized = yield* SessionContextEpoch.initialize(db, systemContext, session.id, session.location)
@@ -218,18 +216,16 @@ export const layer = Layer.effect(
               }),
             )
           }
-          if (stream._tag === "Failure" && Cause.hasInterrupts(stream.cause)) yield* FiberSet.clear(toolFibers)
+          const streamInterrupted = stream._tag === "Failure" && Cause.hasInterrupts(stream.cause)
+          if (streamInterrupted) yield* FiberSet.clear(toolFibers)
           const settled = yield* restore(awaitToolFibers(toolFibers)).pipe(Effect.exit)
           if (settled._tag === "Failure" && isQuestionRejected(settled.cause)) {
             yield* FiberSet.clear(toolFibers)
             yield* withPublication(publisher.failUnsettledTools("Tool execution interrupted"))
             return yield* Effect.interrupt
           }
-          if (
-            (stream._tag === "Failure" && Cause.hasInterrupts(stream.cause)) ||
-            (settled._tag === "Failure" && Cause.hasInterrupts(settled.cause))
-          ) {
-            yield* FiberSet.clear(toolFibers)
+          if (streamInterrupted || (settled._tag === "Failure" && Cause.hasInterrupts(settled.cause))) {
+            if (!streamInterrupted) yield* FiberSet.clear(toolFibers)
             yield* withPublication(publisher.failUnsettledTools("Tool execution interrupted"))
           }
           if (publisher.hasProviderError())
@@ -243,6 +239,18 @@ export const layer = Layer.effect(
       )
     }, Effect.scoped)
 
+    const runActivity = Effect.fn("SessionRunner.runActivity")(function* (
+      sessionID: SessionSchema.ID,
+      initialPromotion: Promotion | undefined,
+    ) {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const needsContinuation = yield* runTurn(sessionID, step === 0 ? initialPromotion : "steer")
+        if (needsContinuation || (yield* SessionInput.hasPending(db, sessionID, "steer"))) continue
+        return
+      }
+      return yield* new StepLimitExceededError({ sessionID, limit: MAX_STEPS })
+    })
+
     const run = Effect.fn("SessionRunner.run")(function* (input: {
       readonly sessionID: SessionSchema.ID
       readonly force?: boolean
@@ -251,21 +259,8 @@ export const layer = Layer.effect(
       const hasQueue = hasSteer ? false : yield* SessionInput.hasPending(db, input.sessionID, "queue")
       if (input.force !== true && !hasSteer && !hasQueue) return
       yield* failInterruptedTools(input.sessionID)
-      let promotion: "steer" | "queue" | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
-      let openActivity = input.force === true || hasSteer || hasQueue
-      while (openActivity) {
-        let needsContinuation = true
-        for (let step = 0; step < MAX_STEPS; step++) {
-          needsContinuation = yield* runTurn(input.sessionID, promotion)
-          promotion = "steer"
-          if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
-          if (!needsContinuation) break
-        }
-        if (needsContinuation)
-          return yield* new StepLimitExceededError({ sessionID: input.sessionID, limit: MAX_STEPS })
-        openActivity = yield* SessionInput.hasPending(db, input.sessionID, "queue")
-        promotion = openActivity ? "queue" : undefined
-      }
+      yield* runActivity(input.sessionID, hasSteer ? "steer" : hasQueue ? "queue" : undefined)
+      while (yield* SessionInput.hasPending(db, input.sessionID, "queue")) yield* runActivity(input.sessionID, "queue")
     })
 
     return Service.of({
