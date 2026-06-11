@@ -728,16 +728,7 @@ export const layer = Layer.effect(
             const exit = yield* mcp.readResource(clientName, uri).pipe(Effect.exit)
             if (Exit.isSuccess(exit)) {
               const content = exit.value
-              if (!content) {
-                pieces.push({
-                  messageID: info.id,
-                  sessionID: input.sessionID,
-                  type: "text",
-                  synthetic: true,
-                  text: `Failed to read MCP resource ${part.filename}: resource not found or could not be read`,
-                })
-                return pieces
-              }
+              if (!content) throw new Error(`Failed to read MCP resource: ${clientName}/${uri}`)
               const items = Array.isArray(content.contents) ? content.contents : [content.contents]
               for (const c of items) {
                 if ("text" in c && c.text) {
