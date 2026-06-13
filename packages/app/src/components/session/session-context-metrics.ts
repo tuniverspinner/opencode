@@ -1,4 +1,4 @@
-import type { AssistantMessage, Message } from "@opencode-ai/sdk/v2/client"
+import type { AssistantMessage, Message } from "@cyf-ai/sdk/v2/client"
 
 type Provider = {
   id: string

@@ -3,13 +3,13 @@ import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { ConfigProvider, Deferred, Duration, Effect, Fiber, Layer, Option, Stream } from "effect"
-import { Config } from "@opencode-ai/core/config"
-import { EventV2 } from "@opencode-ai/core/event"
-import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Watcher } from "@opencode-ai/core/filesystem/watcher"
-import { Git } from "@opencode-ai/core/git"
-import { Location } from "@opencode-ai/core/location"
-import { AbsolutePath } from "@opencode-ai/core/schema"
+import { Config } from "@cyf-ai/core/config"
+import { EventV2 } from "@cyf-ai/core/event"
+import { FSUtil } from "@cyf-ai/core/fs-util"
+import { Watcher } from "@cyf-ai/core/filesystem/watcher"
+import { Git } from "@cyf-ai/core/git"
+import { Location } from "@cyf-ai/core/location"
+import { AbsolutePath } from "@cyf-ai/core/schema"
 import { location } from "../fixture/location"
 import { tmpdir } from "../fixture/tmpdir"
 import { testEffect } from "../lib/effect"
@@ -29,8 +29,8 @@ const configLayer = Layer.succeed(
 
 const flagsLayer = ConfigProvider.layer(
   ConfigProvider.fromUnknown({
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
+    CYF_EXPERIMENTAL_FILEWATCHER: "true",
+    CYF_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
   }),
 )
 

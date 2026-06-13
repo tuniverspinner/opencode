@@ -1,12 +1,12 @@
 {
   "name": "opencode",
   "displayName": "opencode",
-  "description": "opencode for VS Code",
+  "description": "CYF for VS Code",
   "version": "1.16.2",
   "publisher": "sst-dev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anomalyco/opencode"
+    "url": "https://github.com/command-your-fleet/cyf"
   },
   "license": "MIT",
   "icon": "images/icon.png",

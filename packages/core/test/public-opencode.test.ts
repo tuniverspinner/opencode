@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { Effect, Schema } from "effect"
-import { OpenCode, Session, Tool } from "@opencode-ai/core/public"
+import { OpenCode, Session, Tool } from "@cyf-ai/core/public"
 import { testEffect } from "./lib/effect"
 
 const it = testEffect(OpenCode.layer)

@@ -2,16 +2,16 @@ import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { Deferred, Effect, Layer, Schema } from "effect"
-import { Config } from "@opencode-ai/core/config"
-import { ConfigReference } from "@opencode-ai/core/config/reference"
-import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { Global } from "@opencode-ai/core/global"
-import { Location } from "@opencode-ai/core/location"
-import { ProjectReference } from "@opencode-ai/core/project-reference"
-import { Repository } from "@opencode-ai/core/repository"
-import { RepositoryCache } from "@opencode-ai/core/repository-cache"
-import { AbsolutePath } from "@opencode-ai/core/schema"
+import { Config } from "@cyf-ai/core/config"
+import { ConfigReference } from "@cyf-ai/core/config/reference"
+import { FSUtil } from "@cyf-ai/core/fs-util"
+import { Flag } from "@cyf-ai/core/flag/flag"
+import { Global } from "@cyf-ai/core/global"
+import { Location } from "@cyf-ai/core/location"
+import { ProjectReference } from "@cyf-ai/core/project-reference"
+import { Repository } from "@cyf-ai/core/repository"
+import { RepositoryCache } from "@cyf-ai/core/repository-cache"
+import { AbsolutePath } from "@cyf-ai/core/schema"
 import { location } from "./fixture/location"
 import { tmpdir } from "./fixture/tmpdir"
 import { it } from "./lib/effect"
@@ -19,16 +19,16 @@ import { it } from "./lib/effect"
 describe("ProjectReference", () => {
   it.live("uses the broad experimental flag unless references are explicitly configured", () =>
     withEnv(
-      { OPENCODE_EXPERIMENTAL: "true", OPENCODE_EXPERIMENTAL_REFERENCES: undefined },
+      { CYF_EXPERIMENTAL: "true", CYF_EXPERIMENTAL_REFERENCES: undefined },
       Effect.sync(() => {
-        expect(Flag.OPENCODE_EXPERIMENTAL_REFERENCES).toBe(true)
+        expect(Flag.CYF_EXPERIMENTAL_REFERENCES).toBe(true)
       }),
     ).pipe(
       Effect.flatMap(() =>
         withEnv(
-          { OPENCODE_EXPERIMENTAL: "true", OPENCODE_EXPERIMENTAL_REFERENCES: "false" },
+          { CYF_EXPERIMENTAL: "true", CYF_EXPERIMENTAL_REFERENCES: "false" },
           Effect.sync(() => {
-            expect(Flag.OPENCODE_EXPERIMENTAL_REFERENCES).toBe(false)
+            expect(Flag.CYF_EXPERIMENTAL_REFERENCES).toBe(false)
           }),
         ),
       ),
@@ -270,11 +270,11 @@ function withTmp<A, E, R>(body: (tmp: Awaited<ReturnType<typeof tmpdir>>) => Eff
 }
 
 function withReferences<A, E, R>(body: Effect.Effect<A, E, R>) {
-  return withEnv({ OPENCODE_EXPERIMENTAL_REFERENCES: "true" }, body)
+  return withEnv({ CYF_EXPERIMENTAL_REFERENCES: "true" }, body)
 }
 
 function withoutReferences<A, E, R>(body: Effect.Effect<A, E, R>) {
-  return withEnv({ OPENCODE_EXPERIMENTAL: undefined, OPENCODE_EXPERIMENTAL_REFERENCES: undefined }, body)
+  return withEnv({ CYF_EXPERIMENTAL: undefined, CYF_EXPERIMENTAL_REFERENCES: undefined }, body)
 }
 
 function withEnv<A, E, R>(env: Record<string, string | undefined>, body: Effect.Effect<A, E, R>) {

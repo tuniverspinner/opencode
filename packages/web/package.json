@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-ai/web",
+  "name": "@cyf-ai/web",
   "type": "module",
   "license": "MIT",
   "version": "1.16.2",
@@ -36,7 +36,7 @@
     "vscode-languageserver-types": "3.17.5"
   },
   "devDependencies": {
-    "opencode": "workspace:*",
+    "cyf": "workspace:*",
     "@types/node": "catalog:",
     "@astrojs/check": "0.9.6",
     "typescript": "catalog:"

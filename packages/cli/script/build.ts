@@ -2,7 +2,7 @@
 
 import { rm } from "fs/promises"
 import path from "path"
-import { Script } from "@opencode-ai/script"
+import { Script } from "@cyf-ai/script"
 import { modelsData } from "./generate"
 
 const dir = path.resolve(import.meta.dirname, "..")
@@ -74,11 +74,11 @@ for (const item of targets) {
       windows: {},
     },
     define: {
-      OPENCODE_VERSION: `'${Script.version}'`,
-      OPENCODE_CLI_NAME: `'${binary}'`,
-      OPENCODE_MODELS_DEV: modelsData,
-      OPENCODE_CHANNEL: `'${Script.channel}'`,
-      OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
+      CYF_VERSION: `'${Script.version}'`,
+      CYF_CLI_NAME: `'${binary}'`,
+      CYF_MODELS_DEV: modelsData,
+      CYF_CHANNEL: `'${Script.channel}'`,
+      CYF_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
     },
   })
 
@@ -91,7 +91,7 @@ for (const item of targets) {
     `./dist/${name}/package.json`,
     JSON.stringify(
       {
-        name: `@opencode-ai/${name}`,
+        name: `@cyf-ai/${name}`,
         version: Script.version,
         license: "MIT",
         repository: { type: "git", url: "git+https://github.com/anomalyco/opencode.git" },

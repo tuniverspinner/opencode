@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server"
-import { Resource } from "@opencode-ai/console-resource"
+import { Resource } from "@cyf-ai/console-resource"
 
 export async function statsProxy(evt: APIEvent) {
   const req = evt.request.clone()
