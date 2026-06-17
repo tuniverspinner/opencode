@@ -121,6 +121,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   for (const [key, item] of Object.entries(yield* mcp.tools())) {
     const execute = item.execute
     if (!execute) continue
+    const clientName = (item as any).__mcpServer as string | undefined
 
     const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
     const transformed = ProviderTransform.schema(input.model, schema)
@@ -177,7 +178,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             }
           }
 
-          const truncated = yield* truncate.output(textParts.join("\n\n"), {}, input.agent)
+          const truncated = yield* truncate.output(textParts.join("\n\n"), { server: clientName }, input.agent)
           const metadata = {
             ...result.metadata,
             truncated: truncated.truncated,

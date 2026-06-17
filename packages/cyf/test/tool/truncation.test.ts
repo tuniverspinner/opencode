@@ -160,6 +160,37 @@ describe("Truncate", () => {
           expect(result.truncated).toBe(false)
         }),
       )
+
+      const serverIt = configuredIt({
+        tool_output: {
+          max_lines: 100,
+          max_bytes: 1000,
+          servers: {
+            alpha: { max_lines: 5, max_bytes: 50 },
+          },
+        },
+      })
+      serverIt.live("limits() applies per-server overrides", () =>
+        Effect.gen(function* () {
+          const resolved = yield* (yield* Truncate.Service).limits("alpha")
+          expect(resolved.maxLines).toBe(5)
+          expect(resolved.maxBytes).toBe(50)
+        }),
+      )
+      serverIt.live("limits() falls back to global when server is not configured", () =>
+        Effect.gen(function* () {
+          const resolved = yield* (yield* Truncate.Service).limits("beta")
+          expect(resolved.maxLines).toBe(100)
+          expect(resolved.maxBytes).toBe(1000)
+        }),
+      )
+      serverIt.live("limits() works with undefined server", () =>
+        Effect.gen(function* () {
+          const resolved = yield* (yield* Truncate.Service).limits()
+          expect(resolved.maxLines).toBe(100)
+          expect(resolved.maxBytes).toBe(1000)
+        }),
+      )
     })
 
     it.live("large single-line file truncates with byte message", () =>

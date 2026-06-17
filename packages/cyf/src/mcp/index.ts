@@ -695,7 +695,14 @@ export const layer = Layer.effect(
 
             const timeout = entry?.timeout ?? defaultTimeout
             for (const mcpTool of listed) {
-              result[sanitize(clientName) + "_" + sanitize(mcpTool.name)] = convertMcpTool(mcpTool, client, timeout)
+              const tool = convertMcpTool(mcpTool, client, timeout)
+              Object.defineProperty(tool, "__mcpServer", {
+                value: clientName,
+                writable: false,
+                enumerable: false,
+                configurable: false,
+              })
+              result[sanitize(clientName) + "_" + sanitize(mcpTool.name)] = tool
             }
           }),
         { concurrency: "unbounded" },

@@ -24,6 +24,7 @@ export interface Options {
   maxLines?: number
   maxBytes?: number
   direction?: "head" | "tail"
+  server?: string
 }
 
 function hasTaskTool(agent?: Agent.Info) {
@@ -42,7 +43,7 @@ export interface Interface {
   /**
    * Resolved truncation limits: values from `tool_output` in opencode config, or MAX_LINES / MAX_BYTES if unset.
    */
-  readonly limits: () => Effect.Effect<{ maxLines: number; maxBytes: number }>
+  readonly limits: (server?: string) => Effect.Effect<{ maxLines: number; maxBytes: number }>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Truncate") {}
@@ -73,18 +74,24 @@ export const layer = Layer.effect(
       return file
     })
 
-    const limits = Effect.fn("Truncate.limits")(function* () {
+    const limits = Effect.fn("Truncate.limits")(function* (server?: string) {
       const configSvc = yield* Effect.serviceOption(Config.Service)
       if (Option.isNone(configSvc)) return { maxLines: MAX_LINES, maxBytes: MAX_BYTES }
       const cfg = yield* configSvc.value.get().pipe(Effect.catch(() => Effect.succeed(undefined)))
-      return {
+      const global = {
         maxLines: cfg?.tool_output?.max_lines ?? MAX_LINES,
         maxBytes: cfg?.tool_output?.max_bytes ?? MAX_BYTES,
+      }
+      if (!server || !cfg?.tool_output?.servers?.[server]) return global
+      const srv = cfg.tool_output.servers[server]
+      return {
+        maxLines: srv.max_lines ?? global.maxLines,
+        maxBytes: srv.max_bytes ?? global.maxBytes,
       }
     })
 
     const output = Effect.fn("Truncate.output")(function* (text: string, options: Options = {}, agent?: Agent.Info) {
-      const resolved = yield* limits()
+      const resolved = yield* limits(options.server)
       const maxLines = options.maxLines ?? resolved.maxLines
       const maxBytes = options.maxBytes ?? resolved.maxBytes
       const direction = options.direction ?? "head"
