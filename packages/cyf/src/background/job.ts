@@ -4,7 +4,7 @@ import { Identifier } from "@cyf-ai/core/id/id"
 import { JobTable } from "@cyf-ai/core/job.sql"
 import { InstanceState } from "@/effect/instance-state"
 import type { InstanceContext } from "@/project/instance-context"
-import { and, eq, isNull, lt, or } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { Effect, Layer, Scope } from "effect"
 
 export {
@@ -63,21 +63,126 @@ const upsert = (db: DB, ctx: InstanceContext, info: CoreBackgroundJob.Info) =>
     .run()
     .pipe(Effect.orDie, Effect.ignore)
 
-function recover(db: DB, ctx: InstanceContext) {
-  const now = Date.now()
-  return db
-    .update(JobTable)
-    .set({ status: "cancelled", error: "stale" })
-    .where(
-      and(
-        whereInstance(ctx),
-        eq(JobTable.status, "running"),
-        or(isNull(JobTable.lease_expires_at), lt(JobTable.lease_expires_at, now)),
-      ),
-    )
-    .run()
-    .pipe(Effect.orDie, Effect.ignore)
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }
+
+function recover(db: DB, ctx: InstanceContext) {
+  return Effect.gen(function* () {
+    const now = Date.now()
+    const rows = yield* db
+      .select()
+      .from(JobTable)
+      .where(and(whereInstance(ctx), eq(JobTable.status, "running")))
+      .all()
+      .pipe(Effect.orDie)
+    yield* Effect.forEach(
+      rows,
+      (row) =>
+        Effect.gen(function* () {
+          const metadata = row.metadata as Record<string, unknown> | undefined
+          const pid = typeof metadata?.pid === "number" ? metadata.pid : undefined
+          const leaseExpired = row.lease_expires_at === null || row.lease_expires_at < now
+          const orphaned = !leaseExpired && pid !== undefined && !processAlive(pid)
+          if (!leaseExpired && !orphaned) return
+          yield* db
+            .update(JobTable)
+            .set({ status: "cancelled", error: orphaned ? "orphaned" : "stale" })
+            .where(whereId(ctx, row.id))
+            .run()
+            .pipe(Effect.orDie, Effect.ignore)
+        }),
+      { discard: true },
+    )
+  })
+}
+
+export const registerDetached = (
+  ctx: InstanceContext,
+  id: string,
+  title: string,
+  pid: number,
+  metadata: Record<string, unknown> | undefined,
+  leaseMs: number,
+): Effect.Effect<void, never, Database.Service> =>
+  Effect.gen(function* () {
+    const { db } = yield* Database.Service
+    const now = Date.now()
+    yield* db
+      .insert(JobTable)
+      .values({
+        id,
+        project_id: ctx.project.id,
+        directory: ctx.directory,
+        type: "async",
+        title,
+        status: "running",
+        payload: {},
+        metadata: { ...metadata, pid },
+        lease_holder: "async",
+        lease_expires_at: now + leaseMs,
+        started_at: now,
+      })
+      .onConflictDoUpdate({
+        target: [JobTable.project_id, JobTable.directory, JobTable.id],
+        set: {
+          status: "running",
+          title,
+          metadata: { ...metadata, pid },
+          lease_holder: "async",
+          lease_expires_at: now + leaseMs,
+          output: null,
+          error: null,
+          completed_at: null,
+        },
+      })
+      .run()
+      .pipe(Effect.orDie, Effect.ignore)
+  })
+
+export const extendLease = (
+  ctx: InstanceContext,
+  id: string,
+  leaseMs: number,
+): Effect.Effect<void, never, Database.Service> =>
+  Effect.gen(function* () {
+    const { db } = yield* Database.Service
+    yield* db
+      .update(JobTable)
+      .set({ lease_expires_at: Date.now() + leaseMs })
+      .where(and(whereId(ctx, id), eq(JobTable.status, "running"), eq(JobTable.lease_holder, "async")))
+      .run()
+      .pipe(Effect.orDie, Effect.ignore)
+  })
+
+export const finalize = (
+  ctx: InstanceContext,
+  id: string,
+  status: Exclude<CoreBackgroundJob.Status, "running">,
+  output?: string,
+  error?: string,
+): Effect.Effect<void, never, Database.Service> =>
+  Effect.gen(function* () {
+    const { db } = yield* Database.Service
+    yield* db
+      .update(JobTable)
+      .set({
+        status,
+        output,
+        error,
+        completed_at: Date.now(),
+        lease_holder: null,
+        lease_expires_at: null,
+      })
+      .where(whereId(ctx, id))
+      .run()
+      .pipe(Effect.orDie, Effect.ignore)
+  })
 
 export const layer = Layer.effect(
   CoreBackgroundJob.Service,

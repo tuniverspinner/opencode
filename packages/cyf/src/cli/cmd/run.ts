@@ -23,6 +23,9 @@ import { Filesystem } from "@/util/filesystem"
 import { createOpencodeClient, type OpencodeClient, type ToolPart } from "@cyf-ai/sdk/v2"
 import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
+import { BackgroundJob } from "@/background/job"
+import { Database } from "@cyf-ai/core/database/database"
+import { Identifier } from "@cyf-ai/core/id/id"
 
 type ModelInput = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
 
@@ -228,6 +231,14 @@ export const RunCommand = effectCmd({
         describe: "run in direct interactive split-footer mode",
         default: false,
       })
+      .option("async", {
+        type: "boolean",
+        describe: "run detached in the background and print job id",
+      })
+      .option("async-job-id", {
+        type: "string",
+        hidden: true,
+      })
       .option("dangerously-skip-permissions", {
         type: "boolean",
         describe: "auto-approve permissions that are not explicitly denied (dangerous!)",
@@ -246,6 +257,9 @@ export const RunCommand = effectCmd({
     const agentSvc = yield* Agent.Service
     const flags = yield* RuntimeFlags.Service
     const localInstance = yield* InstanceRef
+    if (!localInstance) return yield* Effect.die(new Error("missing instance"))
+    const instance = localInstance
+    const db = yield* Database.Service
     yield* Effect.promise(async () => {
       const rawMessage = [...args.message, ...(args["--"] || [])].join(" ")
       const thinking = args.interactive ? (args.thinking ?? true) : (args.thinking ?? false)
@@ -290,6 +304,36 @@ export const RunCommand = effectCmd({
 
       if (args.interactive && !process.stdout.isTTY) {
         die("--interactive requires a TTY stdout")
+      }
+
+      if (args.async && (args.interactive || args.attach)) {
+        die("--async cannot be used with --interactive or --attach")
+      }
+
+      if (args.async) {
+        const id = Identifier.ascending("job")
+        const childArgv = process.argv.slice(2)
+        const asyncIndex = childArgv.indexOf("--async")
+        if (asyncIndex !== -1) childArgv.splice(asyncIndex, 1, "--async-job-id", id)
+        const title = [...args.message, ...(args["--"] || [])].join(" ").slice(0, 50) || "async run"
+        const isScript = process.argv[1].endsWith(".ts")
+        const proc = isScript
+          ? Bun.spawn(["bun", "run", "--conditions=browser", process.argv[1], ...childArgv], {
+              detached: true,
+              stdio: ["ignore", "ignore", "ignore"],
+            })
+          : Bun.spawn([process.argv[1], ...childArgv], {
+              detached: true,
+              stdio: ["ignore", "ignore", "ignore"],
+            })
+        proc.unref()
+        await Effect.runPromise(
+          BackgroundJob.registerDetached(instance, id, title, proc.pid, {}, 60_000).pipe(
+            Effect.provideService(Database.Service, db),
+          ),
+        )
+        console.log(`Started async job ${id} (PID ${proc.pid})`)
+        return
       }
 
       if (args.interactive) {
@@ -348,7 +392,7 @@ export const RunCommand = effectCmd({
         }
       }
 
-      const piped = process.stdin.isTTY ? undefined : await Bun.stdin.text()
+      const piped = args["async-job-id"] || process.stdin.isTTY ? undefined : await Bun.stdin.text()
       message = resolveRunInput(message, piped) ?? ""
       const initialInput = resolveRunInput(rawMessage, piped)
 
@@ -858,6 +902,37 @@ export const RunCommand = effectCmd({
         }
       }
 
+      async function runWithLease(sdk: OpencodeClient) {
+        const id = args["async-job-id"]
+        if (!id) return execute(sdk)
+        const leaseMs = 60_000
+        const interval = 30_000
+        const heartbeat = setInterval(() => {
+          Effect.runPromise(
+            BackgroundJob.extendLease(instance, id, leaseMs).pipe(Effect.provideService(Database.Service, db)),
+          ).catch(() => {})
+        }, interval)
+        try {
+          await execute(sdk)
+          const status = process.exitCode ? "error" : "completed"
+          const error = process.exitCode ? `exited ${process.exitCode}` : undefined
+          await Effect.runPromise(
+            BackgroundJob.finalize(instance, id, status, undefined, error).pipe(
+              Effect.provideService(Database.Service, db),
+            ),
+          )
+        } catch (error) {
+          await Effect.runPromise(
+            BackgroundJob.finalize(instance, id, "error", undefined, String(error)).pipe(
+              Effect.provideService(Database.Service, db),
+            ),
+          )
+          throw error
+        } finally {
+          clearInterval(heartbeat)
+        }
+      }
+
       if (args.attach) {
         const sdk = attachSDK(directory)
         return await execute(sdk)
@@ -873,7 +948,7 @@ export const RunCommand = effectCmd({
         fetch: fetchFn,
         directory,
       })
-      await execute(sdk)
+      await runWithLease(sdk)
     })
   }),
 })
