@@ -151,12 +151,16 @@ export const layer = Layer.effect(
       } catch {}
     }
 
+    const isWritable = (raw: Record<string, unknown>) =>
+      raw.version === 2 && typeof raw.accounts === "object" && typeof raw.active === "object"
+
     const load: () => Effect.Effect<Writable, Error> = Effect.fnUntraced(function* () {
       if (process.env.CYF_AUTH_CONTENT) {
         const raw = parseAuthContent()
         if (raw && typeof raw === "object") {
-          if ("version" in raw && raw.version === 2) return raw as Writable
-          return yield* writeMigrated(raw as Record<string, unknown>)
+          const record = raw as Record<string, unknown>
+          if (isWritable(record)) return record as unknown as Writable
+          return yield* writeMigrated(record)
         }
         return { version: 2, accounts: {}, active: {} }
       }
@@ -167,8 +171,9 @@ export const layer = Layer.effect(
       const raw = yield* fsys.readJson(file).pipe(Effect.orElseSucceed(() => null))
 
       if (raw && typeof raw === "object") {
-        if ("version" in raw && raw.version === 2) return raw as Writable
-        return yield* writeMigrated(raw as Record<string, unknown>)
+        const record = raw as Record<string, unknown>
+        if (isWritable(record)) return record as unknown as Writable
+        return yield* writeMigrated(record)
       }
 
       return { version: 2, accounts: {}, active: {} }
@@ -185,12 +190,13 @@ export const layer = Layer.effect(
 
     yield* load().pipe(
       Effect.tap((data) => SynchronizedRef.set(state, data)),
-      Effect.catchCause(() => Effect.void),
+      Effect.catchCause((cause) => Effect.logError("Auth background load failed", cause)),
       Effect.ensuring(Deferred.succeed(ready, void 0)),
       Effect.forkScoped,
     )
 
     const activate = Effect.fn("Auth.activate")(function* (id: ID) {
+      yield* Deferred.await(ready)
       const data = yield* SynchronizedRef.get(state)
       const account = data.accounts[id]
       if (!account) return

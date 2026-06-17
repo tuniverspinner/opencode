@@ -6,9 +6,35 @@ import os from "node:os"
 import path from "node:path"
 import { readFile, writeFile, unlink } from "node:fs/promises"
 
-const map = JSON.parse(
+const rawMap = JSON.parse(
   await readFile(new URL("port-map.json", import.meta.url), "utf-8"),
 )
+
+const requiredKeys = [
+  "pathTransforms",
+  "contentTransforms",
+  "fileNameTransforms",
+  "skipFiles",
+  "skipPatterns",
+  "skipCommitPatterns",
+  "binaryExtensions",
+]
+for (const key of requiredKeys) {
+  if (!(key in rawMap)) {
+    console.error(`Error: port-map.json missing required key: ${key}`)
+    process.exit(1)
+  }
+}
+
+const map = rawMap as {
+  pathTransforms: [string, string][]
+  contentTransforms: [string, string][]
+  fileNameTransforms: [string, string][]
+  skipFiles: string[]
+  skipPatterns: string[]
+  skipCommitPatterns: string[]
+  binaryExtensions: string[]
+}
 
 function printHelp() {
   console.log(`\
@@ -40,6 +66,7 @@ async function isAlreadyApplied(target: string): Promise<boolean> {
 async function fetchPRPatch(pr: string): Promise<string> {
   const response = await fetch(
     `https://github.com/anomalyco/opencode/pull/${pr}.patch`,
+    { signal: AbortSignal.timeout(30000) },
   )
   if (!response.ok) {
     console.error(
@@ -51,7 +78,7 @@ async function fetchPRPatch(pr: string): Promise<string> {
 }
 
 async function fetchCommitPatch(hash: string): Promise<string> {
-  await $`git fetch origin ${hash} --no-tags`.quiet()
+  await $`timeout 30 git fetch https://github.com/anomalyco/opencode.git ${hash} --no-tags`.quiet().nothrow()
 
   const parents = (
     await $`git log -1 --format=%P ${hash}`.quiet()
@@ -66,7 +93,12 @@ async function fetchCommitPatch(hash: string): Promise<string> {
 
   const parent = parents.split(" ")[0]
   const diff = await $`git diff ${parent}..${hash}`.quiet()
-  return `diff --git a/tmp b/tmp\n--- /dev/null\n+++ /dev/null\n${diff.stdout.toString()}`
+  const raw = diff.stdout.toString()
+  if (!raw.includes("diff --git")) {
+    console.error("Error: git diff produced no usable patch")
+    process.exit(1)
+  }
+  return raw
 }
 
 function applyTransforms(text: string): string {
@@ -248,7 +280,19 @@ async function main() {
   process.chdir(repoRoot)
 
   const target = positionals[0]
-  const isPr = /^\d+$/.test(target)
+
+  if (/[^a-zA-Z0-9]/.test(target)) {
+    console.error("Error: target contains invalid characters")
+    process.exit(1)
+  }
+
+  const isPr = /^\d{1,6}$/.test(target)
+  const isHash = /^[a-fA-F0-9]{7,40}$/.test(target)
+
+  if (!isPr && !isHash) {
+    console.error("Error: target must be a PR number (1-6 digits) or a commit hash (7-40 hex characters)")
+    process.exit(1)
+  }
 
   if (!values.force) {
     const applied = await isAlreadyApplied(target)
@@ -332,7 +376,7 @@ async function main() {
         console.log(stderr)
         console.log(`--- end ---`)
         console.log(`\nFAILED — patch does not apply cleanly.`)
-        process.exit(1)
+        throw new Error("patch does not apply cleanly")
       }
       console.log(`  OK — ${appliedCount} file(s) would apply cleanly.`)
     } else {
@@ -345,7 +389,7 @@ async function main() {
         console.log(stderr)
         console.log(`--- end ---`)
         console.log(`\nFAILED — patch could not be applied.`)
-        process.exit(1)
+        throw new Error("patch could not be applied")
       }
       if (stderr) console.log(`  ${stderr}`)
       console.log(`  OK — ${appliedCount} file(s) ported.`)
