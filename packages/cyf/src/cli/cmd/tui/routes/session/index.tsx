@@ -1801,6 +1801,11 @@ function GenericTool(props: ToolProps<any>) {
   const ctx = use()
   const output = createMemo(() => props.output?.trim() ?? "")
   const [expanded, setExpanded] = createSignal(false)
+  const [argsExpanded, setArgsExpanded] = createSignal(false)
+  const argsTruncated = createMemo(() =>
+    Object.values(props.input ?? {}).some((value) => typeof value === "string" && value.length > ARG_MAX_LEN),
+  )
+  const argsText = createMemo(() => input(props.input, undefined, argsExpanded()))
   const maxLines = 3
   const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 6))
   const collapsed = createMemo(() => collapseToolOutput(output(), maxLines, maxChars()))
@@ -1813,17 +1818,33 @@ function GenericTool(props: ToolProps<any>) {
     <Show
       when={props.output && ctx.showGenericToolOutput()}
       fallback={
-        <InlineTool icon="⚙" pending="Writing command..." complete={true} part={props.part}>
-          {props.tool} {input(props.input)}
+        <InlineTool
+          icon="⚙"
+          pending="Writing command..."
+          complete={true}
+          part={props.part}
+          onClick={argsTruncated() ? () => setArgsExpanded((prev) => !prev) : undefined}
+        >
+          {props.tool} {argsText()} {argsTruncated() ? (argsExpanded() ? "[-]" : "[+]") : ""}
         </InlineTool>
       }
     >
       <BlockTool
-        title={`# ${props.tool} ${input(props.input)}`}
+        title={`# ${props.tool}`}
         part={props.part}
         onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
       >
-        <box gap={1}>
+        <box gap={1} flexDirection="column">
+          <Show when={argsText() !== ""}>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.textMuted}>{argsText()}</text>
+              <Show when={argsTruncated()}>
+                <box onMouseUp={() => setArgsExpanded((prev) => !prev)}>
+                  <text fg={theme.textMuted}>{argsExpanded() ? "[-]" : "[+]"}</text>
+                </box>
+              </Show>
+            </box>
+          </Show>
           <text fg={theme.text}>{limited()}</text>
           <Show when={collapsed().overflow}>
             <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
@@ -2554,13 +2575,22 @@ function Diagnostics(props: { diagnostics?: Record<string, Record<string, any>[]
   )
 }
 
-function input(input: Record<string, any>, omit?: string[]): string {
+const ARG_MAX_LEN = 80
+
+function input(input: Record<string, unknown>, omit?: string[], expanded = true): string {
   const primitives = Object.entries(input).filter(([key, value]) => {
     if (omit?.includes(key)) return false
     return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
   })
   if (primitives.length === 0) return ""
-  return `[${primitives.map(([key, value]) => `${key}=${value}`).join(", ")}]`
+  return `[${primitives
+    .map(([key, value]) => {
+      if (typeof value === "string" && !expanded && value.length > ARG_MAX_LEN) {
+        return `${key}=${value.slice(0, ARG_MAX_LEN)}…`
+      }
+      return `${key}=${value}`
+    })
+    .join(", ")}]`
 }
 
 function filetype(input?: string) {
