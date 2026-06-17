@@ -2030,6 +2030,13 @@ export type Config = {
   tool_output?: {
     max_lines?: number
     max_bytes?: number
+    servers?: {
+      [key: string]: {
+        max_lines?: number
+        max_bytes?: number
+        args_max_len?: number
+      }
+    }
   }
   compaction?: {
     auto?: boolean
