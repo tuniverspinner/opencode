@@ -1,0 +1,17 @@
+{
+  "pathTransforms": [
+    ["packages/opencode/", "packages/cyf/"]
+  ],
+  "contentTransforms": [
+    ["@opencode-ai/", "@cyf-ai/"],
+    ["OPENCODE_", "CYF_"],
+    ["opencode-ai", "cyf-ai"]
+  ],
+  "fileNameTransforms": [
+    ["opencode", "cyf"]
+  ],
+  "skipFiles": ["bun.lock"],
+  "skipPatterns": ["^\\.github/"],
+  "skipCommitPatterns": ["^chore:", "^docs:", "^release:"],
+  "binaryExtensions": [".png", ".jpg", ".gif", ".ico", ".webp"]
+}
