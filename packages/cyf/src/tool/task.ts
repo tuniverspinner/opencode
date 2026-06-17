@@ -14,6 +14,7 @@ import { Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Database } from "@cyf-ai/core/database/database"
+import { Identifier } from "@cyf-ai/core/id/id"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -231,13 +232,15 @@ export const TaskTool = Tool.define(
         )
       })
 
-      if (yield* background.extend({ id: nextSession.id, run: runTask() })) {
+      const jobId = Identifier.ascending("job")
+
+      if (yield* background.extend({ id: jobId, run: runTask() })) {
         return {
           title: params.description,
           metadata: {
             ...metadata,
             background: true,
-            jobId: nextSession.id,
+            jobId,
           },
           output: renderOutput({
             sessionID: nextSession.id,
@@ -249,16 +252,16 @@ export const TaskTool = Tool.define(
       }
 
       const info = yield* background.start({
-        id: nextSession.id,
+        id: jobId,
         type: id,
         title: params.description,
         metadata,
         onPromote: Effect.all([
           ctx.metadata({
             title: params.description,
-            metadata: { ...metadata, background: true, jobId: nextSession.id },
+            metadata: { ...metadata, background: true, jobId },
           }),
-          notify(nextSession.id),
+          notify(jobId),
         ]),
         run: runTask().pipe(Effect.onInterrupt(() => ops.cancel(nextSession.id))),
       })
@@ -299,8 +302,8 @@ export const TaskTool = Tool.define(
         () =>
           Effect.gen(function* () {
             const result = yield* Effect.raceFirst(
-              background.wait({ id: nextSession.id }).pipe(Effect.map((waited) => waited.info)),
-              background.waitForPromotion(nextSession.id),
+              background.wait({ id: jobId }).pipe(Effect.map((waited) => waited.info)),
+              background.waitForPromotion(jobId),
             )
             if (result?.metadata?.background === true) return backgroundResult()
             if (result?.status === "error") return yield* Effect.fail(new Error(result.error ?? "Task failed"))
@@ -314,7 +317,7 @@ export const TaskTool = Tool.define(
         (_, exit) =>
           Effect.gen(function* () {
             if (Exit.hasInterrupts(exit))
-              yield* Effect.all([cancel, background.cancel(nextSession.id)], { discard: true })
+              yield* Effect.all([cancel, background.cancel(jobId)], { discard: true })
           }).pipe(
             Effect.ensuring(
               Effect.sync(() => {
