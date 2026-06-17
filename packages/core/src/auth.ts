@@ -1,7 +1,7 @@
 export * as Auth from "./auth"
 
 import path from "path"
-import { Effect, Layer, Option, Schema, Context, SynchronizedRef } from "effect"
+import { Deferred, Effect, Layer, Option, Schema, Context, SynchronizedRef } from "effect"
 import { Identifier } from "./util/identifier"
 import { NonNegativeInt, withStatics } from "./schema"
 import { Global } from "./global"
@@ -179,8 +179,15 @@ export const layer = Layer.effect(
         .writeJson(file, data, 0o600)
         .pipe(Effect.mapError((cause) => new FileWriteError({ operation: "write", cause })))
 
-    const state = SynchronizedRef.makeUnsafe(
-      yield* load().pipe(Effect.orElseSucceed((): Writable => ({ version: 2, accounts: {}, active: {} }))),
+    const empty: Writable = { version: 2, accounts: {}, active: {} }
+    const state = SynchronizedRef.makeUnsafe(empty)
+    const ready = yield* Deferred.make<void>()
+
+    yield* load().pipe(
+      Effect.tap((data) => SynchronizedRef.set(state, data)),
+      Effect.catchCause(() => Effect.void),
+      Effect.ensuring(Deferred.succeed(ready, void 0)),
+      Effect.forkScoped,
     )
 
     const activate = Effect.fn("Auth.activate")(function* (id: ID) {
@@ -203,14 +210,17 @@ export const layer = Layer.effect(
 
     const result: Interface = {
       get: Effect.fn("Auth.get")(function* (id) {
+        yield* Deferred.await(ready)
         return (yield* SynchronizedRef.get(state)).accounts[id]
       }),
 
       all: Effect.fn("Auth.all")(function* () {
+        yield* Deferred.await(ready)
         return Object.values((yield* SynchronizedRef.get(state)).accounts)
       }),
 
       active: Effect.fn("Auth.active")(function* (serviceID) {
+        yield* Deferred.await(ready)
         const data = yield* SynchronizedRef.get(state)
         return (
           data.accounts[data.active[serviceID]] ?? Object.values(data.accounts).find((a) => a.serviceID === serviceID)
@@ -218,6 +228,7 @@ export const layer = Layer.effect(
       }),
 
       activeAll: Effect.fn("Auth.activeAll")(function* () {
+        yield* Deferred.await(ready)
         const data = yield* SynchronizedRef.get(state)
         const result = new Map<ServiceID, Info>()
         for (const account of Object.values(data.accounts)) {
@@ -231,10 +242,12 @@ export const layer = Layer.effect(
       }),
 
       forService: Effect.fn("Auth.list")(function* (serviceID) {
+        yield* Deferred.await(ready)
         return Object.values((yield* SynchronizedRef.get(state)).accounts).filter((a) => a.serviceID === serviceID)
       }),
 
       create: Effect.fn("Auth.add")(function* (input) {
+        yield* Deferred.await(ready)
         const id = ID.make(Identifier.ascending())
         const account = new Info({
           id,
@@ -267,6 +280,7 @@ export const layer = Layer.effect(
       }),
 
       update: Effect.fn("Auth.update")(function* (id, updates) {
+        yield* Deferred.await(ready)
         const existing = (yield* SynchronizedRef.get(state)).accounts[id]
         if (!existing) return
         yield* SynchronizedRef.modifyEffect(
@@ -294,6 +308,7 @@ export const layer = Layer.effect(
       }),
 
       remove: Effect.fn("Auth.remove")(function* (id) {
+        yield* Deferred.await(ready)
         const removed = yield* SynchronizedRef.modifyEffect(
           state,
           Effect.fnUntraced(function* (data) {
