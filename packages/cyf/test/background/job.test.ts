@@ -1,9 +1,11 @@
 import { describe, expect } from "bun:test"
-import { Deferred, Effect } from "effect"
+import { Database } from "@cyf-ai/core/database/database"
+import { Deferred, Effect, Layer } from "effect"
 import { BackgroundJob } from "@/background/job"
 import { testEffect } from "../lib/effect"
+import { eq } from "drizzle-orm"
 
-const it = testEffect(BackgroundJob.defaultLayer)
+const it = testEffect(Layer.provideMerge(BackgroundJob.defaultLayer, Database.defaultLayer))
 
 describe("background.job", () => {
   it.instance("tracks started jobs through completion", () =>
@@ -238,6 +240,76 @@ describe("background.job", () => {
       if (job.metadata) job.metadata.value = "changed"
 
       expect((yield* jobs.get(job.id))?.metadata?.value).toBe("initial")
+    }),
+  )
+
+  it.instance("persists completed jobs to durable storage", () =>
+    Effect.gen(function* () {
+      const { db } = yield* Database.Service
+      const { JobTable } = yield* Effect.promise(() => import("@cyf-ai/core/job.sql"))
+
+      const jobs = yield* BackgroundJob.Service
+      const job = yield* jobs.start({
+        type: "test",
+        title: "durable job",
+        run: Effect.succeed("done"),
+      })
+
+      const result = yield* jobs.wait({ id: job.id })
+      expect(result.info?.status).toBe("completed")
+      expect(result.info?.output).toBe("done")
+
+      const row = yield* db
+        .select()
+        .from(JobTable)
+        .where(eq(JobTable.id, job.id))
+        .get()
+        .pipe(Effect.orDie)
+
+      expect(row?.status).toBe("completed")
+      expect(row?.output).toBe("done")
+    }),
+  )
+
+  it.instance("ISOLATION: running job is detectable as stale for crash recovery", () =>
+    Effect.gen(function* () {
+      const { db } = yield* Database.Service
+      const { JobTable } = yield* Effect.promise(() => import("@cyf-ai/core/job.sql"))
+
+      const jobs = yield* BackgroundJob.Service
+      const latch = yield* Deferred.make<void>()
+
+      const job = yield* jobs.start({
+        type: "test",
+        title: "crash-test",
+        run: Deferred.await(latch).pipe(Effect.as("never")),
+      })
+
+      const row = yield* db
+        .select()
+        .from(JobTable)
+        .where(eq(JobTable.id, job.id))
+        .get()
+        .pipe(Effect.orDie)
+
+      expect(row?.status).toBe("running")
+      expect(row?.lease_expires_at).toBeNull()
+
+      const completed = yield* jobs.start({
+        type: "test",
+        run: Effect.succeed("ok"),
+      })
+      yield* jobs.wait({ id: completed.id })
+
+      const done = yield* db
+        .select()
+        .from(JobTable)
+        .where(eq(JobTable.id, completed.id))
+        .get()
+        .pipe(Effect.orDie)
+
+      expect(done?.status).toBe("completed")
+      expect(done?.output).toBe("ok")
     }),
   )
 })

@@ -6,6 +6,11 @@
     "effect": "github.com/Effect-TS/effect-smol",
   },
   "mcp": {},
+  "tool_output": {
+    "servers": {
+      "bluume": { "max_bytes": 2048, "args_max_len": 80 }
+    }
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
