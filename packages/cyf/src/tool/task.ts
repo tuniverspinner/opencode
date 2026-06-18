@@ -230,13 +230,10 @@ export const TaskTool = Tool.define(
         type: id,
         title: params.description,
         metadata,
-        onPromote: Effect.all([
-          ctx.metadata({
-            title: params.description,
-            metadata: { ...metadata, background: true, jobId },
-          }),
-          notify(jobId),
-        ]),
+        onPromote: ctx.metadata({
+          title: params.description,
+          metadata: { ...metadata, background: true, jobId },
+        }),
         run: runTask().pipe(Effect.onInterrupt(() => ops.cancel(nextSession.id))),
       })
 
