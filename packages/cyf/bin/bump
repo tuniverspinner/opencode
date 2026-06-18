@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: bump <version>
+#   cd packages/cyf && bump 0.4.4--asy-default
+# Does: rebuild, install, verify — one command.
+
+cd "$(dirname "$0")/.."
+v="${1:?usage: bump <version>}"
+rm -f dist/cyf-darwin-arm64/bin/cyf
+CYF_VERSION="$v" bun run script/build.ts --single --skip-embed-web-ui
+ditto dist/cyf-darwin-arm64/bin/cyf ~/.local/bin/cyf
+echo "---"
+cyf --version
