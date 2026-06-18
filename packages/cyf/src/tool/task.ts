@@ -23,10 +23,9 @@ export interface TaskPromptOps {
 
 const id = "task"
 const BACKGROUND_DESCRIPTION = [
-  "Background mode: background=true launches the subagent asynchronously and returns immediately.",
-  "Foreground is the default; use it when you need the result before continuing.",
-  "Use background only for independent work that can run while you continue elsewhere.",
-  "You will be notified automatically when it finishes.",
+  "Background mode (default: true): launches the subagent asynchronously and returns immediately.",
+  "Use foreground (background=false) only when you need the result before continuing.",
+  "You will be notified automatically when background tasks finish.",
 ].join(" ")
 const BACKGROUND_STARTED = [
   "The task is working in the background. You will be notified automatically when it finishes.",
@@ -52,7 +51,7 @@ const BaseParameterFields = {
 export const Parameters = Schema.Struct({
   ...BaseParameterFields,
   background: Schema.optional(Schema.Boolean).annotate({
-    description: "Run the agent in the background. You will be notified when it completes.",
+    description: "Run the agent in the background (default: true). Set to false to run in foreground and block until completion.",
   }),
 })
 
@@ -88,7 +87,7 @@ export const TaskTool = Tool.define(
       ctx: Tool.Context,
     ) {
       const cfg = yield* config.get()
-      const runInBackground = params.background === true
+      const runInBackground = params.background !== false
       const explicitModel = params.model
         ? Provider.parseModel(params.model)
         : undefined
