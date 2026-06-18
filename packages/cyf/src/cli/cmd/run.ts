@@ -317,8 +317,14 @@ export const RunCommand = effectCmd({
         if (asyncIndex !== -1) childArgv.splice(asyncIndex, 1, "--async-job-id", id)
         const title = [...args.message, ...(args["--"] || [])].join(" ").slice(0, 50) || "async run"
         const isScript = process.argv[1].endsWith(".ts")
-        const proc = isScript
+        const isBunBinary = !isScript && process.argv[1].includes("/$bunfs/")
+        const childProc = isScript
           ? Bun.spawn(["bun", "run", "--conditions=browser", process.argv[1], ...childArgv], {
+              detached: true,
+              stdio: ["ignore", "ignore", "ignore"],
+            })
+          : isBunBinary
+          ? Bun.spawn([process.argv[0], ...childArgv], {
               detached: true,
               stdio: ["ignore", "ignore", "ignore"],
             })
@@ -326,13 +332,13 @@ export const RunCommand = effectCmd({
               detached: true,
               stdio: ["ignore", "ignore", "ignore"],
             })
-        proc.unref()
+        childProc.unref()
         await Effect.runPromise(
-          BackgroundJob.registerDetached(instance, id, title, proc.pid, {}, 60_000).pipe(
+          BackgroundJob.registerDetached(instance, id, title, childProc.pid, {}, 60_000).pipe(
             Effect.provideService(Database.Service, db),
           ),
         )
-        console.log(`Started async job ${id} (PID ${proc.pid})`)
+        console.log(`Started async job ${id} (PID ${childProc.pid})`)
         return
       }
 
