@@ -34,12 +34,7 @@ const BACKGROUND_STARTED = [
   "Do not poll for progress, ask the task for status, or duplicate this task's work — avoid working with the same files or topics it is using.",
   "Work on non-overlapping tasks, or briefly tell the user what you launched and end your response.",
 ].join("\n")
-const BACKGROUND_UPDATED = [
-  "Additional context sent to the running background task.",
-  "The task is still working in the background. You will be notified automatically when it finishes.",
-  "Do not poll for progress, ask the task for status, or duplicate this task's work — avoid working with the same files or topics it is using.",
-  "Work on non-overlapping tasks, or briefly tell the user what you sent and end your response.",
-].join("\n")
+
 
 const BaseParameterFields = {
   description: Schema.String.annotate({ description: "A short (3-5 words) description of the task" }),
@@ -233,23 +228,6 @@ export const TaskTool = Tool.define(
       })
 
       const jobId = Identifier.ascending("job")
-
-      if (yield* background.extend({ id: jobId, run: runTask() })) {
-        return {
-          title: params.description,
-          metadata: {
-            ...metadata,
-            background: true,
-            jobId,
-          },
-          output: renderOutput({
-            sessionID: nextSession.id,
-            state: "running",
-            summary: "Background task updated",
-            text: BACKGROUND_UPDATED,
-          }),
-        }
-      }
 
       const info = yield* background.start({
         id: jobId,
