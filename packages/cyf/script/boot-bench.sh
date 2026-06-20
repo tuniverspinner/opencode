@@ -9,21 +9,34 @@ set -euo pipefail
 #   MODEL     model id            (default: deepseek/deepseek-v4-flash)
 #   RUNS      measured runs       (default: 5)
 #   WARMUP    warmup runs         (default: 2)
+#   SSH_RUNS  shell-wrapper runs  (default: 3)
+#   CYF_MODE  phase selection     (default: raw)
+#             raw — only raw binary phase (warmup + measured runs)
+#             ssh — only shell wrapper phase (no warmup, cold key-bridge cost)
+#             all — both phases in one run
 
 CYF_BIN="${CYF_BIN:-$HOME/.local/bin/cyf}"
 MODEL="${MODEL:-deepseek/deepseek-v4-flash}"
 RUNS="${RUNS:-5}"
 WARMUP="${WARMUP:-2}"
+SSH_RUNS="${SSH_RUNS:-3}"
+CYF_MODE="${CYF_MODE:-raw}"
 
-python3 - "$CYF_BIN" "$MODEL" "$RUNS" "$WARMUP" <<'PYEOF'
-import sys, os, subprocess, time, json, signal, select, statistics
+python3 - "$CYF_BIN" "$MODEL" "$RUNS" "$WARMUP" "$SSH_RUNS" "$CYF_MODE" <<'PYEOF'
+import sys, os, subprocess, time, json, signal, select, statistics, shlex
 
-cyf_bin = os.path.expanduser(sys.argv[1])
-model   = sys.argv[2]
-runs    = int(sys.argv[3])
-warmup  = int(sys.argv[4])
+cyf_bin  = os.path.expanduser(sys.argv[1])
+model    = sys.argv[2]
+runs     = int(sys.argv[3])
+warmup   = int(sys.argv[4])
+ssh_runs = int(sys.argv[5])
+mode     = sys.argv[6]
 
-if not os.path.isfile(cyf_bin):
+if mode not in ("raw", "ssh", "all"):
+    print(f"error: invalid CYF_MODE={mode!r} (expected: raw, ssh, all)", file=sys.stderr)
+    sys.exit(1)
+
+if mode in ("raw", "all") and not os.path.isfile(cyf_bin):
     print(f"error: cyf binary not found: {cyf_bin}", file=sys.stderr)
     sys.exit(1)
 
@@ -61,16 +74,16 @@ def kill_proc(proc):
         pass
 
 
-def run_once():
-    """Start a fresh cyf process, capture first JSON line's timestamp.
+def run_once(cmd):
+    """Start a fresh process with the given command, capture first JSON line's
+    timestamp.
 
     Returns boot_ms = first_event_timestamp - wall_clock_start_ms.
     """
     start_ms = int(time.time() * 1000)
 
     proc = subprocess.Popen(
-        [cyf_bin, "run", "--agent", "build", "--format", "json", "--pure",
-         "-m", model, "reply: ok"],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
@@ -121,7 +134,7 @@ def run_once():
                 break
 
         if not first_line:
-            raise RuntimeError("cyf produced no output within timeout")
+            raise RuntimeError("process produced no output within timeout")
 
         event = json.loads(first_line)
         if "timestamp" not in event:
@@ -138,37 +151,82 @@ def run_once():
             pass
 
 
-# ── Main ──────────────────────────────────────────────────────────────
-print(f"boot-bench: {cyf_bin}")
-print(f"model: {model}  warmup: {warmup}  runs: {runs}")
-print()
+def run_phase(name, cmd, n_warmup, n_runs):
+    """Run warmup + measured runs for one phase. Returns list of measured boot_ms."""
+    bar = "─" * max(0, 64 - len(name))
+    print(f"── {name} {bar}")
+    times = []
+    total = n_warmup + n_runs
+    for i in range(1, total + 1):
+        is_warmup = i <= n_warmup
+        label     = f"warmup {i}/{n_warmup}" if is_warmup else f"run {i - n_warmup}/{n_runs}"
 
-times  = []
-total  = warmup + runs
-for i in range(1, total + 1):
-    is_warmup = i <= warmup
-    label     = f"warmup {i}/{warmup}" if is_warmup else f"run {i - warmup}/{runs}"
+        try:
+            boot = run_once(cmd)
+            print(f"  {label}  {boot}ms")
+            sys.stdout.flush()
+            if not is_warmup:
+                times.append(boot)
+        except Exception as e:
+            print(f"  {label}  ERROR: {e}", file=sys.stderr)
+            sys.stderr.flush()
 
-    try:
-        boot = run_once()
-        print(f"  {label}  {boot}ms")
-        sys.stdout.flush()
-        if not is_warmup:
-            times.append(boot)
-    except Exception as e:
-        print(f"  {label}  ERROR: {e}", file=sys.stderr)
-        sys.stderr.flush()
+        time.sleep(0.3)
 
-    time.sleep(0.3)
+    print()
+    return times
 
-print()
-if times:
+
+def summarize(name, times):
+    if not times:
+        print(f"  [{name}] no valid runs")
+        return False
     avg = sum(times) // len(times)
     mn  = min(times)
     mx  = max(times)
     med = int(statistics.median(times))
-    print(f"  avg: {avg}ms  min: {mn}ms  max: {mx}ms  median: {med}ms  n={len(times)}")
-else:
-    print("  no valid runs", file=sys.stderr)
+    print(f"  [{name}] avg: {avg}ms  min: {mn}ms  max: {mx}ms  median: {med}ms  n={len(times)}")
+    return True
+
+
+# ── Command builders ──────────────────────────────────────────────────
+raw_cmd = [cyf_bin, "run", "--agent", "build", "--format", "json", "--pure",
+           "-m", model, "reply: ok"]
+
+ssh_cmd_str = (f"cyf run --agent build --format json --pure "
+               f"-m {shlex.quote(model)} {shlex.quote('reply: ok')}")
+ssh_cmd = ["zsh", "-l", "-c", ssh_cmd_str]
+
+# ── Main ──────────────────────────────────────────────────────────────
+do_raw = mode in ("raw", "all")
+do_ssh = mode in ("ssh", "all")
+
+print(f"boot-bench  mode={mode}  model={model}")
+if do_raw:
+    print(f"  raw phase:  warmup={warmup}  runs={runs}  bin={cyf_bin}")
+if do_ssh:
+    print(f"  ssh phase:  runs={ssh_runs}  (no warmup — cold key-bridge cost)")
+print()
+
+phases = []
+
+if do_raw:
+    times = run_phase("Phase 1 — Raw binary", raw_cmd, warmup, runs)
+    phases.append(("Raw binary", times))
+
+if do_ssh:
+    if do_raw:
+        print()
+    times = run_phase("Phase 2 — Shell wrapper (zsh -l -c)", ssh_cmd, 0, ssh_runs)
+    phases.append(("Shell wrapper", times))
+
+# ── Summary ───────────────────────────────────────────────────────────
+print("══ Summary " + "═" * 53)
+any_valid = False
+for name, times in phases:
+    any_valid = summarize(name, times) or any_valid
+
+if not any_valid:
+    print("  no valid runs in any phase", file=sys.stderr)
     sys.exit(1)
 PYEOF
