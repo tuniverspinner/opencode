@@ -30,6 +30,7 @@ import open from "open"
 import { Effect, Exit, Layer, Option, Context, Schema, Stream } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
+import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { CrossSpawnSpawner } from "@cyf-ai/core/cross-spawn-spawner"
 
@@ -482,6 +483,7 @@ export const layer = Layer.effect(
       return { mcpClient, status, defs: listed } satisfies CreateResult
     })
     const cfgSvc = yield* Config.Service
+    const flags = yield* RuntimeFlags.Service
 
     const descendants = Effect.fnUntraced(
       function* (pid: number) {
@@ -533,20 +535,24 @@ export const layer = Layer.effect(
           defs: {},
         }
 
-        yield* Effect.forEach(
-          Object.entries(config),
-          ([key, mcp]) =>
+        if (flags.pure) {
+          log.info("skipping MCP connections in pure mode")
+          return s
+        }
+
+        for (const [key, mcp] of Object.entries(config)) {
+          if (!isMcpConfigured(mcp)) {
+            log.error("Ignoring MCP config entry without type", { key })
+            continue
+          }
+
+          if (mcp.enabled === false) {
+            s.status[key] = { status: "disabled" }
+            continue
+          }
+
+          yield* Effect.forkScoped(
             Effect.gen(function* () {
-              if (!isMcpConfigured(mcp)) {
-                log.error("Ignoring MCP config entry without type", { key })
-                return
-              }
-
-              if (mcp.enabled === false) {
-                s.status[key] = { status: "disabled" }
-                return
-              }
-
               const result = yield* create(key, mcp).pipe(Effect.catch(() => Effect.void))
               if (!result) return
 
@@ -555,10 +561,11 @@ export const layer = Layer.effect(
                 s.clients[key] = result.mcpClient
                 s.defs[key] = result.defs!
                 watch(s, key, result.mcpClient, bridge, mcp.timeout)
+                log.info("MCP connected in background", { key, toolCount: result.defs!.length })
               }
             }),
-          { concurrency: "unbounded" },
-        )
+          )
+        }
 
         yield* Effect.addFinalizer(() =>
           Effect.gen(function* () {
@@ -982,6 +989,7 @@ export const defaultLayer = layer.pipe(
   Layer.provide(McpAuth.defaultLayer),
   Layer.provide(EventV2Bridge.defaultLayer),
   Layer.provide(Config.defaultLayer),
+  Layer.provide(RuntimeFlags.defaultLayer),
   Layer.provide(CrossSpawnSpawner.defaultLayer),
   Layer.provide(FSUtil.defaultLayer),
 )

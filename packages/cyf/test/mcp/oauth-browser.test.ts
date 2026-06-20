@@ -112,11 +112,13 @@ const { McpAuth } = await import("../../src/mcp/auth")
 const { McpOAuthCallback } = await import("../../src/mcp/oauth-callback")
 const { FSUtil } = await import("@cyf-ai/core/fs-util")
 const { CrossSpawnSpawner } = await import("@cyf-ai/core/cross-spawn-spawner")
+const { RuntimeFlags } = await import("../../src/effect/runtime-flags")
 const mcpTest = testEffect(
   MCP.layer.pipe(
     Layer.provide(McpAuth.defaultLayer),
     Layer.provideMerge(EventV2Bridge.defaultLayer),
     Layer.provide(Config.defaultLayer),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(FSUtil.defaultLayer),
   ),
