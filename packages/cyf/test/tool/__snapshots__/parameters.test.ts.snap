@@ -1,5 +1,47 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
+exports[`tool parameters JSON Schema (wire shape) task 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "background": {
+      "description": "Run the agent in the background (default: true). Set to false to run in foreground and block until completion.",
+      "type": "boolean",
+    },
+    "command": {
+      "description": "The command that triggered this task",
+      "type": "string",
+    },
+    "description": {
+      "description": "A short (3-5 words) description of the task",
+      "type": "string",
+    },
+    "model": {
+      "description": "Model to run the subagent with, in provider/model format (e.g., moonshotai/kimi-k2.7-code). Overrides the agent's default model.",
+      "type": "string",
+    },
+    "prompt": {
+      "description": "The task for the agent to perform",
+      "type": "string",
+    },
+    "subagent_type": {
+      "description": "The type of specialized agent to use for this task",
+      "type": "string",
+    },
+    "task_id": {
+      "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
+      "type": "string",
+    },
+  },
+  "required": [
+    "description",
+    "prompt",
+    "subagent_type",
+  ],
+  "type": "object",
+}
+`;
+
 exports[`tool parameters JSON Schema (wire shape) apply_patch 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -310,44 +352,6 @@ exports[`tool parameters JSON Schema (wire shape) skill 1`] = `
   },
   "required": [
     "name",
-  ],
-  "type": "object",
-}
-`;
-
-exports[`tool parameters JSON Schema (wire shape) task 1`] = `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "background": {
-      "description": "Run the agent in the background. You will be notified when it completes.",
-      "type": "boolean",
-    },
-    "command": {
-      "description": "The command that triggered this task",
-      "type": "string",
-    },
-    "description": {
-      "description": "A short (3-5 words) description of the task",
-      "type": "string",
-    },
-    "prompt": {
-      "description": "The task for the agent to perform",
-      "type": "string",
-    },
-    "subagent_type": {
-      "description": "The type of specialized agent to use for this task",
-      "type": "string",
-    },
-    "task_id": {
-      "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
-      "type": "string",
-    },
-  },
-  "required": [
-    "description",
-    "prompt",
-    "subagent_type",
   ],
   "type": "object",
 }

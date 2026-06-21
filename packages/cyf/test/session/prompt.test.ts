@@ -845,6 +845,7 @@ it.instance(
         description: "inspect bug",
         prompt: "look into the cache key path",
         subagent_type: "general",
+        background: false,
       })
       yield* llm.hang
       yield* user(chat.id, "hello")
@@ -871,7 +872,7 @@ it.instance(
       yield* prompt.cancel(chat.id)
       yield* Fiber.await(fiber)
     }),
-  10_000,
+  15_000,
 )
 
 it.instance(

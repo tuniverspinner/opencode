@@ -553,7 +553,12 @@ export const layer = Layer.effect(
 
           yield* Effect.forkScoped(
             Effect.gen(function* () {
-              const result = yield* create(key, mcp).pipe(Effect.catch(() => Effect.void))
+              const result = yield* create(key, mcp).pipe(
+                Effect.catch((error) => {
+                  log.warn("failed to connect MCP server in background", { key, error })
+                  return Effect.void
+                }),
+              )
               if (!result) return
 
               s.status[key] = result.status

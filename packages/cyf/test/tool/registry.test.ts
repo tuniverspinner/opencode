@@ -117,7 +117,7 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("hides task background parameter unless experimental background subagents are enabled", () =>
+  it.instance("task background parameter is visible without experimental gate", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
@@ -129,8 +129,9 @@ describe("tool.registry", () => {
         agent: build,
       })).find((tool) => tool.id === "task")
 
-      expect(task?.jsonSchema).toBeDefined()
-      expect((task?.jsonSchema?.properties as Record<string, unknown> | undefined)?.background).toBeUndefined()
+      expect(task).toBeDefined()
+      const schema = ToolJsonSchema.fromTool(task!)
+      expect((schema.properties as Record<string, unknown> | undefined)?.background).toBeDefined()
     }),
   )
 
@@ -324,7 +325,7 @@ describe("tool.registry", () => {
         const test = yield* TestInstance
         const opencode = path.join(test.directory, ".opencode")
         const customTools = path.join(opencode, "tools")
-        const plugin = path.join(opencode, "node_modules", "@opencode-ai", "plugin")
+        const plugin = path.join(opencode, "node_modules", "@cyf-ai", "plugin")
         yield* Effect.promise(() => fs.mkdir(path.join(plugin, "dist"), { recursive: true }))
         yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
         yield* Effect.promise(() =>

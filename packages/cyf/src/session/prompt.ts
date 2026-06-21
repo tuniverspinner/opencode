@@ -336,6 +336,7 @@ export const layer = Layer.effect(
         description: task.description,
         subagent_type: task.agent,
         command: task.command,
+        background: false,
       }
       yield* plugin.trigger(
         "tool.execute.before",
@@ -427,17 +428,28 @@ export const layer = Layer.effect(
       yield* sessions.updateMessage(assistantMessage)
 
       if (result && part.state.status === "running") {
+        const isBackground = result.metadata?.background === true
         yield* sessions.updatePart({
           ...part,
-          state: {
-            status: "completed",
-            input: part.state.input,
-            title: result.title,
-            metadata: result.metadata,
-            output: result.output,
-            attachments,
-            time: { ...part.state.time, end: Date.now() },
-          },
+          state: (
+            isBackground
+              ? {
+                  status: "running" as const,
+                  input: part.state.input,
+                  title: result.title,
+                  metadata: result.metadata,
+                  time: { start: part.state.time.start },
+                }
+              : {
+                  status: "completed" as const,
+                  input: part.state.input,
+                  title: result.title,
+                  metadata: result.metadata,
+                  output: result.output,
+                  attachments,
+                  time: { ...part.state.time, end: Date.now() },
+                }
+          ) satisfies SessionV1.ToolState,
         } satisfies SessionV1.ToolPart)
       }
 

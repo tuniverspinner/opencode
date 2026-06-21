@@ -218,7 +218,7 @@ export const layer = Layer.effect(
         yield* session.updatePart({
           ...match.part,
           state: {
-            status: "completed",
+            status: output.metadata?.background ? "running" : "completed",
             input: match.part.state.input,
             output: output.output,
             metadata: output.metadata,
