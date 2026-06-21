@@ -20,6 +20,7 @@ import {
   sanitizedProcessEnv,
 } from "@cyf-ai/core/util/opencode-process"
 import { validateSession } from "./validate-session"
+import { bootTrace } from "@/util/boot-trace"
 
 declare global {
   const CYF_WORKER_PATH: string
@@ -117,6 +118,7 @@ export const TuiThreadCommand = cmd({
     // (Important when running under `bun run` wrappers on Windows.)
     const unguard = win32InstallCtrlCGuard()
     try {
+      bootTrace("TUI: handler start")
       // Must be the very first thing — disables CTRL_C_EVENT before any Worker
       // spawn or async work so the OS cannot kill the process group.
       win32DisableProcessedInput()
@@ -146,6 +148,7 @@ export const TuiThreadCommand = cmd({
       const worker = new Worker(file, {
         env,
       })
+      bootTrace("TUI: worker spawned")
       worker.onerror = (e) => {
         Log.Default.error("thread error", {
           message: e.message,
@@ -228,8 +231,11 @@ export const TuiThreadCommand = cmd({
       }, 1000).unref?.()
 
       try {
+        bootTrace("TUI: before createRenderer")
         const { createTuiRenderer, tui } = await import("./app")
         const renderer = await createTuiRenderer(config)
+        bootTrace("TUI: after createRenderer")
+        bootTrace("TUI: before mount")
         const handle = tui({
           url: transport.url,
           renderer,

@@ -13,6 +13,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { Session as SessionApi } from "@/session/session"
 import { registerOpencodeKeymap } from "@/cli/cmd/tui/keymap"
 import * as Locale from "@/util/locale"
+import { bootTrace } from "@/util/boot-trace"
 import { withRunSpan } from "./otel"
 import { resolveInteractiveStdin } from "./runtime.stdin"
 import { entrySplash, exitSplash, splashMeta } from "./splash"
@@ -161,6 +162,8 @@ function queueSplash(
 // scrollback commits and footer repaints happen in the same frame. After
 // the entry splash, RunFooter takes over the footer region.
 export async function createRuntimeLifecycle(input: LifecycleInput): Promise<Lifecycle> {
+  const __lt = (label: string) => bootTrace(`TUI: lifecycle - ${label}`)
+  __lt("entry")
   return withRunSpan(
     "RunLifecycle.boot",
     {
@@ -192,6 +195,7 @@ export async function createRuntimeLifecycle(input: LifecycleInput): Promise<Lif
           consoleMode: "disabled",
           clearOnShutdown: false,
         })
+        __lt("renderer created")
         const theme = await resolveRunTheme(renderer)
         renderer.setBackgroundColor(theme.background)
         const keymap = createDefaultOpenTuiKeymap(renderer)
@@ -217,6 +221,7 @@ export async function createRuntimeLifecycle(input: LifecycleInput): Promise<Lif
           }),
         )
         await renderer.idle().catch(() => {})
+        __lt("after renderer idle (splash visible)")
 
         const { RunFooter } = await footerTask
 
@@ -252,6 +257,7 @@ export async function createRuntimeLifecycle(input: LifecycleInput): Promise<Lif
           onBackground: input.onBackground,
           onSubagentSelect: input.onSubagentSelect,
         })
+        __lt("footer mounted")
 
         const sigint = () => {
           footer.requestExit()

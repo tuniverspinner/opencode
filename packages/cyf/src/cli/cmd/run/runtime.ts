@@ -15,6 +15,7 @@
 import { createOpencodeClient } from "@cyf-ai/sdk/v2"
 import { Flag } from "@cyf-ai/core/flag/flag"
 import { MessageID } from "@/session/schema"
+import { bootTrace } from "@/util/boot-trace"
 import { createRunDemo } from "./demo"
 import { resolveModelInfo, resolveRunTuiConfig, resolveSessionInfo } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
@@ -28,6 +29,8 @@ export { pickVariant, resolveVariant } from "./variant.shared"
 
 /** @internal Exported for testing */
 export { runPromptQueue } from "./runtime.queue"
+
+const __tui = (label: string) => bootTrace(`TUI: ${label}`)
 
 type BootContext = Pick<
   RunInput,
@@ -182,6 +185,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
       const log = trace()
       const tuiConfigTask = resolveRunTuiConfig()
       const ctx = await input.boot()
+      __tui("after boot (input.boot)")
       const modelTask = resolveModelInfo(ctx.sdk, ctx.directory, ctx.model)
       const sessionTask =
         ctx.resume === true
@@ -193,6 +197,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
             })
       const savedTask = resolveSavedVariant(ctx.model)
       const [tuiConfig, session, savedVariant] = await Promise.all([tuiConfigTask, sessionTask, savedTask])
+      __tui("tuiConfig + session + variant resolved")
       const state: RuntimeState = {
         shown: !session.first,
         aborting: false,
@@ -237,6 +242,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         return state.session
       }
 
+      __tui("before createRuntimeLifecycle")
       const shell = await createRuntimeLifecycle({
         directory: ctx.directory,
         findFiles: (query) =>
@@ -386,6 +392,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           })
         },
       })
+      __tui("lifecycle created (TUI mounted, screen visible)")
       const footer = shell.footer
       const rememberLocal = (commit: StreamCommit, after?: LocalReplayAnchor) => {
         state.localRows = [...state.localRows, { commit, after }].slice(-LOCAL_REPLAY_ROW_LIMIT)
@@ -789,6 +796,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
 // Local in-process mode. Creates an SDK client backed by a direct fetch to
 // the in-process server, so no external HTTP server is needed.
 export async function runInteractiveLocalMode(input: RunLocalInput): Promise<void> {
+  __tui("runInteractiveLocalMode entry")
   return withRunSpan(
     "RunInteractive.localMode",
     {
@@ -802,6 +810,7 @@ export async function runInteractiveLocalMode(input: RunLocalInput): Promise<voi
         fetch: input.fetch,
         directory: input.directory,
       })
+      __tui("sdk created")
       let session: Promise<ResolvedSession> | undefined
 
       return runInteractiveRuntime({
@@ -851,6 +860,7 @@ export async function runInteractiveLocalMode(input: RunLocalInput): Promise<voi
 
 // Attach mode. Uses the caller-provided SDK client directly.
 export async function runInteractiveMode(input: RunInput & { createSession?: CreateSession }): Promise<void> {
+  __tui("runInteractiveMode entry")
   return withRunSpan(
     "RunInteractive.attachMode",
     {

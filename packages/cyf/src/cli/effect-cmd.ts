@@ -2,6 +2,7 @@ import type { Argv } from "yargs"
 import { Effect, Schema } from "effect"
 import type { AppServices } from "@/effect/app-runtime"
 import type { InstanceStore } from "@/project/instance-store"
+import { bootTrace } from "@/util/boot-trace"
 import { cmd, type WithDoubleDash } from "./cmd/cmd"
 
 /**
@@ -74,21 +75,26 @@ export const effectCmd = <Args, A>(opts: EffectCmdOpts<Args, A>) =>
     builder: opts.builder as never,
     async handler(rawArgs) {
       const { AppRuntime } = await import("@/effect/app-runtime")
+      if (process.env.CYF_BOOT_TRACE === "1") bootTrace("effect-cmd handler entry")
       // yargs typing wraps Args in ArgumentsCamelCase<WithDoubleDash<...>>; cast at the boundary.
       const args = rawArgs as unknown as WithDoubleDash<Args>
       const useInstance = typeof opts.instance === "function" ? opts.instance(args) : opts.instance !== false
       if (!useInstance) {
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("before AppRuntime.runPromise (no instance)")
         await AppRuntime.runPromise(opts.handler(args))
         return
       }
       const { InstanceStore } = await import("@/project/instance-store")
       const { InstanceRef } = await import("@/effect/instance-ref")
       const directory = opts.directory?.(args) ?? process.cwd()
+      if (process.env.CYF_BOOT_TRACE === "1") bootTrace("before InstanceStore.load")
       const { store, ctx } = await AppRuntime.runPromise(
         InstanceStore.Service.use((store) => store.load({ directory }).pipe(Effect.map((ctx) => ({ store, ctx })))),
       )
+      if (process.env.CYF_BOOT_TRACE === "1") bootTrace("after InstanceStore.load (instance ready)")
       try {
         await AppRuntime.runPromise(opts.handler(args).pipe(Effect.provideService(InstanceRef, ctx)))
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("after handler ran")
       } finally {
         await AppRuntime.runPromise(store.dispose(ctx))
       }

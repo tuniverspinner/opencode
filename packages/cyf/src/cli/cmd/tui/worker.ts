@@ -13,8 +13,10 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { ensureProcessMetadata } from "@cyf-ai/core/util/opencode-process"
 import { Effect } from "effect"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
+import { bootTrace } from "@/util/boot-trace"
 
 ensureProcessMetadata("worker")
+bootTrace("TUI: worker module body start")
 
 await Log.init({
   print: process.argv.includes("--print-logs"),
@@ -96,4 +98,5 @@ export const rpc = {
   },
 }
 
+bootTrace("TUI: worker RPC listening")
 Rpc.listen(rpc)

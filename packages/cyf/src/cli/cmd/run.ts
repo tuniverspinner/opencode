@@ -20,6 +20,7 @@ import { UI } from "../ui"
 import { effectCmd } from "../effect-cmd"
 import { EOL } from "os"
 import { Filesystem } from "@/util/filesystem"
+import { bootTrace } from "@/util/boot-trace"
 import { createOpencodeClient, type OpencodeClient, type ToolPart } from "@cyf-ai/sdk/v2"
 import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
@@ -250,16 +251,22 @@ export const RunCommand = effectCmd({
         describe: "enable direct interactive demo slash commands; pass one as the message to run it immediately",
       }),
   handler: Effect.fn("Cli.run")(function* (args) {
+    const __bt = (label: string) => bootTrace(`run.handler: ${label}`)
+    __bt("entry")
     const { Agent } = yield* Effect.promise(() => import("@/agent/agent"))
+    __bt("after import Agent")
     const { RuntimeFlags } = yield* Effect.promise(() => import("@/effect/runtime-flags"))
     const { InstanceRef } = yield* Effect.promise(() => import("@/effect/instance-ref"))
     const { ServerAuth } = yield* Effect.promise(() => import("@/server/auth"))
+    __bt("after dynamic imports")
     const agentSvc = yield* Agent.Service
+    __bt("after Agent.Service yield")
     const flags = yield* RuntimeFlags.Service
     const localInstance = yield* InstanceRef
     if (!localInstance) return yield* Effect.die(new Error("missing instance"))
     const instance = localInstance
     const db = yield* Database.Service
+    __bt("after service yields")
     yield* Effect.promise(async () => {
       const rawMessage = [...args.message, ...(args["--"] || [])].join(" ")
       const thinking = args.interactive ? (args.thinking ?? true) : (args.thinking ?? false)
@@ -653,7 +660,9 @@ export const RunCommand = effectCmd({
       }
 
       async function execute(sdk: OpencodeClient) {
+        __bt("execute: entry")
         const sess = await session(sdk)
+        __bt("execute: after session()")
         if (!sess?.id) {
           UI.error("Session not found")
           process.exit(1)
@@ -811,7 +820,9 @@ export const RunCommand = effectCmd({
         await share(client, sessionID)
 
         if (!args.interactive) {
+          __bt("execute: before event.subscribe")
           const events = await client.event.subscribe()
+          __bt("execute: after event.subscribe")
           loop(client, events).catch((e) => {
             console.error(e)
             process.exit(1)
@@ -834,6 +845,7 @@ export const RunCommand = effectCmd({
           }
 
           const model = pick(args.model)
+          __bt("execute: before session.prompt")
           const result = await client.session.prompt({
             sessionID,
             agent,
@@ -841,6 +853,7 @@ export const RunCommand = effectCmd({
             variant: args.variant,
             parts: [...files, { type: "text", text: message }],
           })
+          __bt("execute: after session.prompt")
           if (result.error) {
             if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
             process.exitCode = 1
@@ -945,16 +958,23 @@ export const RunCommand = effectCmd({
       }
 
       const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("fetchFn: first call (importing Server)")
         const { Server } = await import("@/server/server")
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("fetchFn: after import Server")
         const request = new Request(input, init)
-        return Server.Default().app.fetch(request)
+        const response = await Server.Default().app.fetch(request)
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("fetchFn: after first fetch")
+        return response
       }) as typeof globalThis.fetch
+      __bt("before createOpencodeClient")
       const sdk = createOpencodeClient({
         baseUrl: "http://opencode.internal",
         fetch: fetchFn,
         directory,
       })
+      __bt("before runWithLease")
       await runWithLease(sdk)
+      __bt("after runWithLease")
     })
   }),
 })

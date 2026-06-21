@@ -34,8 +34,14 @@ import { PluginCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
 import { ensureProcessMetadata } from "@cyf-ai/core/util/opencode-process"
 import { isRecord } from "@/util/record"
+import { bootTrace, setBootT0 } from "./util/boot-trace"
+
+setBootT0()
+
+bootTrace("index.ts module body start")
 
 const processMetadata = ensureProcessMetadata("main")
+bootTrace("after ensureProcessMetadata")
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -96,8 +102,10 @@ const cli = yargs(args)
         return "INFO"
       })(),
     })
+    bootTrace("after Log.init (yargs middleware)")
 
     Heap.start()
+    bootTrace("after Heap.start")
 
     process.env.AGENT = "1"
     process.env.CYF = "1"
@@ -151,13 +159,16 @@ const cli = yargs(args)
 
 try {
   if (args.includes("-h") || args.includes("--help")) {
+    bootTrace("before cli.parse (help)")
     await cli.parse(args, (err: Error | undefined, _argv: unknown, out: string) => {
       if (err) throw err
       if (!out) return
       show(out)
     })
   } else {
+    bootTrace("before cli.parse")
     await cli.parse()
+    bootTrace("after cli.parse")
   }
 } catch (e) {
   let data: Record<string, any> = {}

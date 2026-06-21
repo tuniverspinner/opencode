@@ -79,6 +79,7 @@ import {
 
 import type { EventSource } from "./context/sdk"
 import { DialogVariant } from "./component/dialog-variant"
+import { bootTrace } from "@/util/boot-trace"
 
 const appGlobalBindingCommands = [
   "session.list",
@@ -197,6 +198,7 @@ function errorMessage(error: unknown) {
 }
 
 export function tui(input: TuiInput): TuiHandle {
+  bootTrace("TUI: tui entry")
   const unguard = win32InstallCtrlCGuard()
   win32DisableProcessedInput()
 
@@ -225,6 +227,7 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
   const mode = (await renderer.waitForThemeMode(1000)) ?? "dark"
   if (renderer.isDestroyed) return
 
+  bootTrace("TUI: before Solid render")
   await render(() => {
     return (
       <ErrorBoundary
@@ -287,6 +290,7 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
       </ErrorBoundary>
     )
   }, renderer)
+  bootTrace("TUI: after Solid render (first paint)")
 }
 
 function createTuiLifecycle(input: {

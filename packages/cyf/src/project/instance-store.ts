@@ -4,6 +4,7 @@ import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { InstanceRef } from "@/effect/instance-ref"
 import { disposeInstance as runDisposers } from "@/effect/instance-registry"
 import { FSUtil } from "@cyf-ai/core/fs-util"
+import { bootTrace } from "@/util/boot-trace"
 import { Context, Deferred, Duration, Effect, Exit, Layer, Scope } from "effect"
 import { type InstanceContext } from "./instance-context"
 import { InstanceBootstrap } from "./bootstrap-service"
@@ -42,6 +43,7 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
 
     const boot = (input: LoadInput & { directory: string }) =>
       Effect.gen(function* () {
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("InstanceStore.boot start")
         const ctx: InstanceContext =
           input.project && input.worktree
             ? {
@@ -56,7 +58,9 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
                   project: result.project,
                 })),
               )
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("after project.fromDirectory")
         yield* bootstrap.run.pipe(Effect.provideService(InstanceRef, ctx))
+        if (process.env.CYF_BOOT_TRACE === "1") bootTrace("after bootstrap.run")
         return ctx
       }).pipe(Effect.withSpan("InstanceStore.boot"))
 

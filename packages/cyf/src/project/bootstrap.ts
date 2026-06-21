@@ -8,14 +8,9 @@ import { InstanceState } from "@/effect/instance-state"
 import { ShareNext } from "@/share/share-next"
 import { Effect, Layer } from "effect"
 import { Config } from "@/config/config"
+import { bootProfile } from "@/util/boot-trace"
 import { Service } from "./bootstrap-service"
 import { Reference } from "@/reference/reference"
-
-const BOOT_PROFILE = process.env.CYF_BOOT_PROFILE === "1"
-function bootProfile(name: string, elapsed: number) {
-  if (!BOOT_PROFILE) return
-  console.log(`[boot-profile] ${name} ${elapsed}ms`)
-}
 
 export { Service } from "./bootstrap-service"
 export type { Interface } from "./bootstrap-service"
