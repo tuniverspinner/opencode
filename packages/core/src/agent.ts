@@ -7,6 +7,7 @@ import { PermissionSchema } from "./permission/schema"
 import { ProviderV2 } from "./provider"
 import { PositiveInt } from "./schema"
 import { State } from "./state"
+import { LayerNode } from "./effect/layer-node"
 
 export const ID = Schema.String.pipe(Schema.brand("AgentV2.ID"))
 export type ID = typeof ID.Type
@@ -140,3 +141,4 @@ export const layer = Layer.effect(
 )
 
 export const locationLayer = layer
+export const node = LayerNode.make(layer, [])
