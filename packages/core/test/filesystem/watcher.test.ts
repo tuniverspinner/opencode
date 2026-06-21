@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import { ConfigProvider, Deferred, Duration, Effect, Fiber, Layer, Option, Stream } from "effect"
 import { Config } from "@opencode-ai/core/config"
+import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { EventV2 } from "@opencode-ai/core/event"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Watcher } from "@opencode-ai/core/filesystem/watcher"
@@ -18,7 +19,8 @@ const describeWatcher = Watcher.hasNativeBinding() && !process.env.CI ? describe
 
 type WatcherEvent = { file: string; event: "add" | "change" | "unlink" }
 
-const it = testEffect(Layer.mergeAll(FSUtil.defaultLayer, EventV2.defaultLayer))
+const root = LayerNode.group([FSUtil.node, EventV2.node])
+const it = testEffect(LayerNode.buildLayer(root))
 
 const configLayer = Layer.succeed(
   Config.Service,
@@ -26,6 +28,7 @@ const configLayer = Layer.succeed(
     entries: () => Effect.succeed([]),
   }),
 )
+const configNode = LayerNode.make(configLayer, [])
 
 const flagsLayer = ConfigProvider.layer(
   ConfigProvider.fromUnknown({
@@ -35,15 +38,21 @@ const flagsLayer = ConfigProvider.layer(
 )
 
 function provide(directory: string, vcs?: Location.Interface["vcs"]) {
-  const locationLayer = Layer.succeed(
-    Location.Service,
-    Location.Service.of(location({ directory: AbsolutePath.make(directory) }, { vcs })),
+  const locationNode = LayerNode.make(
+    Layer.succeed(
+      Location.Service,
+      Location.Service.of(location({ directory: AbsolutePath.make(directory) }, { vcs })),
+    ),
+    [],
   )
   return Effect.provide(
-    Watcher.layer.pipe(
-      Layer.provide(configLayer),
-      Layer.provide(Git.defaultLayer),
-      Layer.provide(locationLayer),
+    LayerNode.buildLayer(
+      LayerNode.group([
+        LayerNode.make(Watcher.layer, [configNode, EventV2.node, FSUtil.node, Git.node, locationNode]),
+        root,
+      ]),
+      { replacements: [LayerNode.replace(configNode, configLayer)] },
+    ).pipe(
       Layer.provide(flagsLayer),
     ),
   )
@@ -196,7 +205,7 @@ describeWatcher("Watcher", () => {
       yield* noUpdate((event) => event.file === file, fs.writeFileString(file, "gone")).pipe(
         Effect.provideService(EventV2.Service, events),
       )
-    }).pipe(Effect.provide(Layer.mergeAll(FSUtil.defaultLayer, EventV2.defaultLayer))),
+    }).pipe(Effect.provide(LayerNode.buildLayer(root))),
   )
 
   it.live("ignores .git/index changes", () =>
