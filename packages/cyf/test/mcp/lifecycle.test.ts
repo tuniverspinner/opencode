@@ -3,6 +3,9 @@ import { Cause, Effect, Exit } from "effect"
 import type { MCP as MCPNS } from "../../src/mcp/index"
 import { testEffect } from "../lib/effect"
 
+// Skip config-based MCP init (background fibers) — these tests use mcp.add().
+process.env.CYF_PURE = "1"
+
 // --- Mock infrastructure ---
 
 // Per-client state for controlling mock behavior
