@@ -205,6 +205,7 @@ function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: number
           resetTimeoutOnProgress: true,
           signal: options.abortSignal,
           timeout,
+          onprogress: () => {},
         },
       )
     },
