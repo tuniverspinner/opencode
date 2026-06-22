@@ -471,6 +471,9 @@ export const layer = Layer.effect(
           : yield* connectLocal(key, mcp as ConfigMCPV1.Info & { type: "local" })
 
       if (!mcpClient) {
+        if (status.status !== "connected" && status.status !== "disabled") {
+          yield* Effect.logWarning("server unavailable", { key, type: mcp.type, status: status.status })
+        }
         return { status } satisfies CreateResult
       }
 
@@ -511,6 +514,19 @@ export const layer = Layer.effect(
     )
 
     function watch(s: State, name: string, client: MCPClient, bridge: EffectBridge.Shape, timeout?: number) {
+      client.onclose = () => {
+        if (s.clients[name] !== client) return
+        delete s.clients[name]
+        delete s.defs[name]
+        s.status[name] = { status: "failed", error: "Connection closed" }
+        bridge.fork(
+          Effect.logWarning("MCP connection closed", { server: name }).pipe(
+            Effect.andThen(events.publish(ToolsChanged, { server: name })),
+            Effect.ignore,
+          ),
+        )
+      }
+
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         log.info("tools list changed notification received", { server: name })
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
@@ -575,8 +591,11 @@ export const layer = Layer.effect(
 
         yield* Effect.addFinalizer(() =>
           Effect.gen(function* () {
+            const clients = Object.values(s.clients)
+            s.clients = {}
+            s.defs = {}
             yield* Effect.forEach(
-              Object.values(s.clients),
+              clients,
               (client) =>
                 Effect.gen(function* () {
                   const pid = client.transport instanceof StdioClientTransport ? client.transport.pid : null
@@ -602,6 +621,7 @@ export const layer = Layer.effect(
 
     function closeClient(s: State, name: string) {
       const client = s.clients[name]
+      delete s.clients[name]
       delete s.defs[name]
       if (!client) return Effect.void
       return Effect.tryPromise(() => client.close()).pipe(Effect.ignore)
@@ -615,11 +635,12 @@ export const layer = Layer.effect(
       timeout?: number,
     ) {
       const bridge = yield* EffectBridge.make()
-      yield* closeClient(s, name)
+      const previous = s.clients[name]
       s.status[name] = { status: "connected" }
       s.clients[name] = client
       s.defs[name] = listed
       watch(s, name, client, bridge, timeout)
+      if (previous) yield* Effect.tryPromise(() => previous.close()).pipe(Effect.ignore)
       return s.status[name]
     })
 
