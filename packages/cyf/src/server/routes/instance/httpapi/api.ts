@@ -66,7 +66,7 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(WorkspaceApi)
   .middleware(SchemaErrorMiddleware)
 
-export const OpenCodeHttpApi = HttpApi.make("opencode")
+export const OpenCodeHttpApi = HttpApi.make("cyf")
   .addHttpApi(RootHttpApi)
   .addHttpApi(EventApi)
   .addHttpApi(InstanceHttpApi)

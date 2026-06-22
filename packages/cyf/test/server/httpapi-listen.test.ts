@@ -16,7 +16,7 @@ const original = {
   envPassword: process.env.CYF_SERVER_PASSWORD,
   envUsername: process.env.CYF_SERVER_USERNAME,
 }
-const auth = { username: "opencode", password: "listen-secret" }
+const auth = { username: "cyf", password: "listen-secret" }
 const testPty = process.platform === "win32" ? test.skip : test
 
 afterEach(async () => {

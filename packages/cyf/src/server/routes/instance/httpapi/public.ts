@@ -527,7 +527,7 @@ function normalizeParameter(param: OpenApiParameter, route: string) {
 
 export const PublicApi = OpenCodeHttpApi.annotateMerge(
   OpenApi.annotations({
-    title: "opencode",
+    title: "cyf",
     version: "1.0.0",
     description: "opencode api",
     transform: matchLegacyOpenApi,

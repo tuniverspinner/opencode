@@ -3,8 +3,8 @@ import { Spec } from "../framework/spec"
 
 declare const CYF_CLI_NAME: string | undefined
 
-export const Commands = Spec.make(typeof CYF_CLI_NAME === "string" ? CYF_CLI_NAME : "opencode", {
-  description: "OpenCode 2.0 preview command line interface",
+export const Commands = Spec.make(typeof CYF_CLI_NAME === "string" ? CYF_CLI_NAME : "cyf", {
+  description: "CYF — Command Your Fleet",
   commands: [
     Spec.make("debug", {
       description: "Debugging and troubleshooting tools",

@@ -151,7 +151,7 @@ export const layer = Layer.effectDiscard(
             const { body, contentType } = yield* Effect.gen(function* () {
               const response = yield* execute(http, parameters.url, parameters.format).pipe(
                 Effect.catchIf(isCloudflareChallenge, () =>
-                  execute(http, parameters.url, parameters.format, "opencode"),
+                  execute(http, parameters.url, parameters.format, "cyf"),
                 ),
               )
               const contentType = response.headers["content-type"] || ""

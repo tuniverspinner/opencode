@@ -13,8 +13,8 @@ export const LLMGatewayPlugin = PluginV2.define({
           if (item.provider.api.url !== "https://api.llmgateway.io/v1") continue
           evt.provider.update(item.provider.id, (provider) => {
             provider.request.headers["HTTP-Referer"] = "https://opencode.ai/"
-            provider.request.headers["X-Title"] = "opencode"
-            provider.request.headers["X-Source"] = "opencode"
+            provider.request.headers["X-Title"] = "cyf"
+            provider.request.headers["X-Source"] = "cyf"
           })
         }
       }),

@@ -1,16 +1,16 @@
 import path from "path"
 import fs from "fs/promises"
-import { xdgData, xdgCache, xdgConfig, xdgState } from "xdg-basedir"
 import os from "os"
 import { Context, Effect, Layer } from "effect"
 import { Flock } from "./util/flock"
 import { Flag } from "./flag/flag"
 
-const app = "opencode"
-const data = path.join(xdgData!, app)
-const cache = path.join(xdgCache!, app)
-const config = path.join(xdgConfig!, app)
-const state = path.join(xdgState!, app)
+const app = "cyf"
+const root = path.join(process.env.CYF_TEST_HOME ?? os.homedir(), `.${app}`)
+const data = path.join(root, "data")
+const cache = path.join(root, "cache")
+const config = path.join(root, "config")
+const state = path.join(root, "state")
 const tmp = path.join(os.tmpdir(), app)
 
 const paths = {
