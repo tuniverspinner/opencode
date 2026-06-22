@@ -1,7 +1,7 @@
 import { dynamicTool, type Tool, jsonSchema, type JSONSchema7 } from "ai"
 import { ConfigV1 } from "@cyf-ai/core/v1/config/config"
 import { serviceUse } from "@cyf-ai/core/effect/service-use"
-import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { Client, type ClientOptions } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
@@ -36,6 +36,18 @@ import { CrossSpawnSpawner } from "@cyf-ai/core/cross-spawn-spawner"
 
 const log = Log.create({ service: "mcp" })
 const DEFAULT_TIMEOUT = 30_000
+const CLIENT_OPTIONS = {
+  capabilities: {
+    // https://github.com/anomalyco/opencode/issues/11948
+    // sampling: {},
+    // https://github.com/anomalyco/opencode/issues/23066
+    // elicitation: {},
+    // https://github.com/anomalyco/opencode/issues/2308
+    // roots: {},
+    // https://github.com/anomalyco/opencode/issues/28567
+    // tasks: {},
+  },
+} satisfies ClientOptions
 
 const TolerantListToolsResultSchema = ListToolsResultSchema.extend({
   tools: ToolSchema.omit({ outputSchema: true }).array(),
@@ -115,6 +127,27 @@ function isMcpConfigured(entry: McpEntry): entry is ConfigMCPV1.Info {
 }
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "_")
+const MAX_LIST_PAGES = 1_000
+
+async function paginate<T, R extends { nextCursor?: string }>(
+  list: (cursor?: string) => Promise<R>,
+  items: (result: R) => T[],
+) {
+  const result: T[] = []
+  const cursors = new Set<string>()
+  let cursor: string | undefined
+
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const page = await list(cursor)
+    result.push(...items(page))
+    if (page.nextCursor === undefined) return result
+    if (cursors.has(page.nextCursor)) throw new Error(`MCP list returned duplicate cursor: ${page.nextCursor}`)
+    cursors.add(page.nextCursor)
+    cursor = page.nextCursor
+  }
+
+  throw new Error(`MCP list exceeded ${MAX_LIST_PAGES} pages`)
+}
 
 function remoteURL(key: string, value: string) {
   if (URL.canParse(value)) return new URL(value)
@@ -127,33 +160,23 @@ function isOutputSchemaValidationError(error: Error) {
   )
 }
 
-function listTools(key: string, client: MCPClient, timeout: number) {
+function listTools(client: MCPClient, timeout: number) {
   return Effect.tryPromise({
-    try: () => client.listTools(undefined, { timeout }),
+    try: () =>
+      paginate(
+        async (cursor) => {
+          const params = cursor === undefined ? undefined : { cursor }
+          try {
+            return await client.listTools(params, { timeout })
+          } catch (error) {
+            if (!(error instanceof Error) || !isOutputSchemaValidationError(error)) throw error
+            return client.request({ method: "tools/list", params }, TolerantListToolsResultSchema, { timeout })
+          }
+        },
+        (result) => result.tools,
+      ),
     catch: (err) => (err instanceof Error ? err : new Error(String(err))),
-  }).pipe(
-    Effect.map((result) => result.tools),
-    Effect.catch((error) => {
-      if (!isOutputSchemaValidationError(error)) return Effect.fail(error)
-
-      log.warn("failed to validate MCP tool output schemas, retrying without output schema validation", { key, error })
-      return Effect.tryPromise({
-        try: () =>
-          client.request({ method: "tools/list" }, TolerantListToolsResultSchema, {
-            timeout,
-          }),
-        catch: (err) => (err instanceof Error ? err : new Error(String(err))),
-      }).pipe(
-        Effect.map((result) =>
-          result.tools.map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.inputSchema,
-          })),
-        ),
-      )
-    }),
-  )
+  })
 }
 
 // Convert MCP tool definition to AI SDK Tool type
@@ -188,10 +211,10 @@ function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: number
   })
 }
 
-function defs(key: string, client: MCPClient, timeout?: number) {
-  return listTools(key, client, timeout ?? DEFAULT_TIMEOUT).pipe(
+function defs(client: MCPClient, timeout?: number) {
+  return listTools(client, timeout ?? DEFAULT_TIMEOUT).pipe(
     Effect.catch((err) => {
-      log.error("failed to get tools from client", { key, error: err })
+      log.error("failed to get tools from client", { error: err })
       return Effect.succeed(undefined)
     }),
   )
@@ -295,7 +318,7 @@ export const layer = Layer.effect(
         (t) =>
           Effect.tryPromise({
             try: () => {
-              const client = new Client({ name: "opencode", version: InstallationVersion })
+              const client = new Client({ name: "opencode", version: InstallationVersion }, CLIENT_OPTIONS)
               return withTimeout(client.connect(t), timeout).then(() => client)
             },
             catch: (e) => (e instanceof Error ? e : new Error(String(e))),
@@ -477,7 +500,7 @@ export const layer = Layer.effect(
         return { status } satisfies CreateResult
       }
 
-      const listed = yield* defs(key, mcpClient, mcp.timeout)
+      const listed = yield* defs(mcpClient, mcp.timeout)
       if (!listed) {
         yield* Effect.tryPromise(() => mcpClient.close()).pipe(Effect.ignore)
         return { status: { status: "failed", error: "Failed to get tools" } } satisfies CreateResult
@@ -531,7 +554,7 @@ export const layer = Layer.effect(
         log.info("tools list changed notification received", { server: name })
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
 
-        const listed = await bridge.promise(defs(name, client, timeout))
+        const listed = await bridge.promise(defs(client, timeout))
         if (!listed) return
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
 
@@ -759,12 +782,32 @@ export const layer = Layer.effect(
 
     const prompts = Effect.fn("MCP.prompts")(function* () {
       const s = yield* InstanceState.get(state)
-      return yield* collectFromConnected(s, (c) => c.listPrompts().then((r) => r.prompts), "prompts")
+      return yield* collectFromConnected(
+        s,
+        (c) =>
+          c.getServerCapabilities()?.prompts
+            ? paginate(
+                (cursor) => c.listPrompts(cursor === undefined ? undefined : { cursor }),
+                (result) => result.prompts,
+              )
+            : Promise.resolve([]),
+        "prompts",
+      )
     })
 
     const resources = Effect.fn("MCP.resources")(function* () {
       const s = yield* InstanceState.get(state)
-      return yield* collectFromConnected(s, (c) => c.listResources().then((r) => r.resources), "resources")
+      return yield* collectFromConnected(
+        s,
+        (c) =>
+          c.getServerCapabilities()?.resources
+            ? paginate(
+                (cursor) => c.listResources(cursor === undefined ? undefined : { cursor }),
+                (result) => result.resources,
+              )
+            : Promise.resolve([]),
+        "resources",
+      )
     })
 
     const withClient = Effect.fnUntraced(function* <A>(
@@ -889,7 +932,7 @@ export const layer = Layer.effect(
           Effect.tapError(() => Effect.tryPromise(() => client?.close() ?? Promise.resolve()).pipe(Effect.ignore)),
         )
 
-        const listed = client ? yield* defs(mcpName, client, mcpConfig.timeout) : undefined
+        const listed = client ? yield* defs(client, mcpConfig.timeout) : undefined
         if (!client || !listed) {
           yield* Effect.tryPromise(() => client?.close() ?? Promise.resolve()).pipe(Effect.ignore)
           return { status: "failed", error: "Failed to get tools" } as Status
