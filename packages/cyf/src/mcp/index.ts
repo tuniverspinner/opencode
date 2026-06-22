@@ -10,6 +10,8 @@ import {
   CallToolResultSchema,
   ListToolsResultSchema,
   ToolSchema,
+  type LoggingMessageNotification,
+  LoggingMessageNotificationSchema,
   type Tool as MCPToolDef,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
@@ -565,6 +567,11 @@ export const layer = Layer.effect(
         )
       }
 
+      client.setNotificationHandler(LoggingMessageNotificationSchema, (notification) =>
+        bridge.promise(serverLog(name, notification.params)),
+      )
+
+      if (!client.getServerCapabilities()?.tools) return
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         log.info("tools list changed notification received", { server: name })
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
@@ -576,6 +583,24 @@ export const layer = Layer.effect(
         s.defs[name] = listed
         await bridge.promise(events.publish(ToolsChanged, { server: name }).pipe(Effect.ignore))
       })
+    }
+
+    function serverLog(name: string, params: LoggingMessageNotification["params"]) {
+      const fields = { server: name, logger: params.logger, level: params.level, data: params.data }
+      switch (params.level) {
+        case "debug":
+          return Effect.logDebug("MCP server log", fields)
+        case "info":
+        case "notice":
+          return Effect.logInfo("MCP server log", fields)
+        case "warning":
+          return Effect.logWarning("MCP server log", fields)
+        case "error":
+        case "critical":
+        case "alert":
+        case "emergency":
+          return Effect.logError("MCP server log", fields)
+      }
     }
 
     const state = yield* InstanceState.make<State>(
