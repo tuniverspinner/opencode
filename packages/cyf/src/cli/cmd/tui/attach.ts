@@ -1,8 +1,4 @@
 import { cmd } from "../cmd"
-import { UI } from "@/cli/ui"
-import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
-import { errorMessage } from "@/util/error"
-import { validateSession } from "./validate-session"
 import { ServerAuth } from "@/server/auth"
 
 export const AttachCommand = cmd({
@@ -44,60 +40,32 @@ export const AttachCommand = cmd({
         describe: "basic auth username (defaults to CYF_SERVER_USERNAME or 'cyf')",
       }),
   handler: async (args) => {
-    const { TuiConfig } = await import("@/cli/cmd/tui/config/tui")
-    const unguard = win32InstallCtrlCGuard()
-    try {
-      win32DisableProcessedInput()
+    const { runTuiSession } = await import("./prepare-tui-session")
 
-      if (args.fork && !args.continue && !args.session) {
-        UI.error("--fork requires --continue or --session")
-        process.exitCode = 1
-        return
-      }
+    await runTuiSession({
+      args: {
+        continue: args.continue,
+        sessionID: args.session,
+        fork: args.fork,
+      },
+      setup: async () => {
+        const directory = (() => {
+          if (!args.dir) return undefined
+          try {
+            process.chdir(args.dir)
+            return process.cwd()
+          } catch {
+            return args.dir
+          }
+        })()
+        const headers = ServerAuth.headers({ password: args.password, username: args.username })
 
-      const directory = (() => {
-        if (!args.dir) return undefined
-        try {
-          process.chdir(args.dir)
-          return process.cwd()
-        } catch {
-          // If the directory doesn't exist locally (remote attach), pass it through.
-          return args.dir
-        }
-      })()
-      const headers = ServerAuth.headers({ password: args.password, username: args.username })
-      const config = await TuiConfig.get()
-
-      try {
-        await validateSession({
+        return {
           url: args.url,
-          sessionID: args.session,
           directory,
           headers,
-        })
-      } catch (error) {
-        UI.error(errorMessage(error))
-        process.exitCode = 1
-        return
-      }
-
-      const { createTuiRenderer, tui } = await import("./app")
-      const renderer = await createTuiRenderer(config)
-      const handle = tui({
-        url: args.url,
-        config,
-        renderer,
-        args: {
-          continue: args.continue,
-          sessionID: args.session,
-          fork: args.fork,
-        },
-        directory,
-        headers,
-      })
-      await handle.done
-    } finally {
-      unguard?.()
-    }
+        }
+      },
+    })
   },
 })
