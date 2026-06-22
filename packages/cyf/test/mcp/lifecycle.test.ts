@@ -1,4 +1,5 @@
 import { expect, mock, beforeEach } from "bun:test"
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
 import { Cause, Effect, Exit } from "effect"
 import type { MCP as MCPNS } from "../../src/mcp/index"
 import { testEffect } from "../lib/effect"
@@ -10,6 +11,7 @@ process.env.CYF_PURE = "1"
 
 // Per-client state for controlling mock behavior
 interface MockClientState {
+  capabilities: { tools?: object; prompts?: object; resources?: object }
   tools: Array<{ name: string; description?: string; inputSchema: object; outputSchema?: object }>
   listToolsCalls: number
   requestCalls: number
@@ -38,6 +40,7 @@ function getOrCreateClientState(name?: string): MockClientState {
   let state = clientStates.get(key)
   if (!state) {
     state = {
+      capabilities: { tools: {}, prompts: {}, resources: {} },
       tools: [{ name: "test_tool", description: "A test tool", inputSchema: { type: "object", properties: {} } }],
       listToolsCalls: 0,
       requestCalls: 0,
@@ -134,6 +137,10 @@ void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
 
     setNotificationHandler(schema: unknown, handler: (...args: any[]) => any) {
       this._state?.notificationHandlers.set(schema, handler)
+    }
+
+    getServerCapabilities() {
+      return this._state?.capabilities
     }
 
     async listTools() {
@@ -250,7 +257,7 @@ it.instance(
           { name: "next_tool", description: "next", inputSchema: { type: "object", properties: {} } },
         ]
 
-        const handler = Array.from(serverState.notificationHandlers.values())[0]
+        const handler = serverState.notificationHandlers.get(ToolListChangedNotificationSchema)
         expect(handler).toBeDefined()
         yield* Effect.promise(() => handler?.())
 
