@@ -21,7 +21,6 @@ import type {
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"
-import { useEvent } from "./event"
 import { createSignal, onCleanup, onMount } from "solid-js"
 
 type LocationData = {
@@ -72,7 +71,6 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     })
 
     const sdk = useSDK()
-    const events = useEvent()
     const [defaultLocation, setDefaultLocation] = createSignal<LocationRef>({
       directory: sdk.directory ?? process.cwd(),
     })
@@ -130,6 +128,8 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           ])
           break
         case "session.next.agent.switched":
+          if (store.session.info[event.data.sessionID])
+            setStore("session", "info", event.data.sessionID, "agent", event.data.agent)
           message.update(event.data.sessionID, (draft) => {
             message.prepend(draft, {
               id: event.data.messageID,
@@ -140,6 +140,8 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           })
           break
         case "session.next.model.switched":
+          if (store.session.info[event.data.sessionID])
+            setStore("session", "info", event.data.sessionID, "model", event.data.model)
           message.update(event.data.sessionID, (draft) => {
             message.prepend(draft, {
               id: event.data.messageID,
@@ -403,14 +405,12 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     }
 
     onMount(() => {
-      const unsub = events.subscribe((event, metadata) => {
-        handleEvent({
-          ...event,
-          data: event.properties,
-          location: { directory: metadata.directory, workspaceID: metadata.workspace },
-        } as V2Event)
-      })
-      onCleanup(unsub)
+      const controller = new AbortController()
+      onCleanup(() => controller.abort())
+      void (async () => {
+        const events = await sdk.client.v2.event.subscribe({ signal: controller.signal })
+        for await (const event of events.stream) handleEvent(event)
+      })().catch(() => {})
     })
 
     const result = {

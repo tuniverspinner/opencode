@@ -8,6 +8,7 @@ import { externalID, type ExternalID, RelativePath, optionalOmitUndefined, withS
 import { Identifier } from "../util/identifier"
 import { V2Schema } from "../v2-schema"
 import { AgentV2 } from "../agent"
+import { SessionMessageID } from "./message-id"
 
 export const ID = Schema.String.check(Schema.isStartsWith("ses")).pipe(
   Schema.brand("SessionID"),
@@ -44,6 +45,8 @@ export class Info extends Schema.Class<Info>("SessionV2.Info")({
     archived: V2Schema.DateTimeUtcFromMillis.pipe(Schema.optional),
   }),
   title: Schema.String,
+  share: Schema.Struct({ url: Schema.String }).pipe(optionalOmitUndefined),
+  revert: Schema.Struct({ messageID: SessionMessageID.ID }).pipe(optionalOmitUndefined),
   location: Location.Ref,
   subpath: RelativePath.pipe(Schema.optional),
 }) {}

@@ -21,11 +21,10 @@ import {
   onCleanup,
   batch,
   Show,
-  on,
 } from "solid-js"
 import { TuiPathsProvider, TuiStartupProvider, TuiTerminalEnvironmentProvider, useTuiStartup } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
-import { DialogProvider as DialogProviderList } from "./component/dialog-provider"
+import { DialogIntegration } from "./component/dialog-integration"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { ProjectProvider, useProject } from "./context/project"
@@ -265,7 +264,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                     >
                       <TuiStartupProvider
                         value={{
-                          initialRoute: process.env.OPENCODE_ROUTE ? JSON.parse(process.env.OPENCODE_ROUTE) : undefined,
+                          initialRoute: process.env.OPENCODE_SCRAP
+                            ? { type: "plugin", id: "scrap" }
+                            : process.env.OPENCODE_ROUTE
+                              ? JSON.parse(process.env.OPENCODE_ROUTE)
+                              : undefined,
                           skipInitialLoading: Boolean(process.env.OPENCODE_FAST_BOOT),
                         }}
                       >
@@ -526,17 +529,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     })
   })
 
-  createEffect(
-    on(
-      () => sync.status === "complete" && sync.data.provider.length === 0,
-      (isEmpty, wasEmpty) => {
-        // only trigger when we transition into an empty-provider state
-        if (!isEmpty || wasEmpty) return
-        dialog.replace(() => <DialogProviderList />)
-      },
-    ),
-  )
-
   const connected = useConnected()
   const currentWorktreeWorkspace = createMemo(() => {
     const workspaceID = project.workspace.current()
@@ -726,13 +718,13 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "provider.connect",
-        title: "Connect provider",
+        title: "Connect integration",
         suggested: !connected(),
         slashName: "connect",
         run: () => {
-          dialog.replace(() => <DialogProviderList />)
+          dialog.replace(() => <DialogIntegration />)
         },
-        category: "Provider",
+        category: "Integration",
       },
       ...(sync.data.console_state.switchableOrgCount > 1
         ? [

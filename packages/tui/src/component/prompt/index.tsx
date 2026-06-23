@@ -43,7 +43,8 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
-import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
+import { DialogIntegration } from "../dialog-integration"
+import { useConnected } from "../use-connected"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
@@ -56,6 +57,7 @@ import { useTuiConfig } from "../../config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
+import { useData } from "../../context/data"
 
 export type PromptProps = {
   sessionID?: string
@@ -205,8 +207,10 @@ export function Prompt(props: PromptProps) {
   const [auto, setAuto] = createSignal<AutocompleteRef>()
   const workspace = usePromptWorkspace(props.sessionID)
   const move = usePromptMove({ projectID: project.project, sessionID: () => props.sessionID })
+  const data = useData()
   const [cursorVersion, setCursorVersion] = createSignal(0)
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
+  const connected = useConnected()
   const hasRightContent = createMemo(() => Boolean(props.right))
 
   function promptModelWarning() {
@@ -215,8 +219,8 @@ export function Prompt(props: PromptProps) {
       message: "Connect a provider to send prompts",
       duration: 3000,
     })
-    if (sync.data.provider.length === 0) {
-      dialog.replace(() => <DialogProviderConnect />)
+    if (!connected()) {
+      dialog.replace(() => <DialogIntegration />)
     }
   }
 
@@ -315,7 +319,7 @@ export function Prompt(props: PromptProps) {
       syncedSessionID = sessionID
 
       // Only set agent if it's a primary agent (not a subagent)
-      const isPrimaryAgent = local.agent.list().some((x) => x.name === msg.agent)
+      const isPrimaryAgent = local.agent.list().some((agent) => agent.id === msg.agent)
       if (msg.agent && isPrimaryAgent) {
         // Keep command line --agent if specified.
         if (!args.agent) local.agent.set(msg.agent)
@@ -982,6 +986,7 @@ export function Prompt(props: PromptProps) {
 
     const variant = local.model.variant.current()
     let sessionID = props.sessionID
+    let session = sessionID ? data.session.get(sessionID) : undefined
     let finishMoveProgress = false
     if (sessionID == null) {
       const selectedWorkspace = workspace.selection()
@@ -991,10 +996,9 @@ export function Prompt(props: PromptProps) {
       if (move.pending() && !directory) return false
       finishMoveProgress = Boolean(move.progress())
 
-      const res = await sdk.client.session.create({
-        directory,
-        workspace: workspaceID,
-        agent: agent.name,
+      const res = await sdk.client.v2.session.create({
+        location: directory ? { directory, workspaceID } : undefined,
+        agent: agent.id,
         model: {
           providerID: selectedModel.providerID,
           id: selectedModel.modelID,
@@ -1004,8 +1008,6 @@ export function Prompt(props: PromptProps) {
 
       if (res.error) {
         if (finishMoveProgress) move.finishSubmit()
-        console.log("Creating a session failed:", res.error)
-
         toast.show({
           message: "Creating a session failed. Open console for more details.",
           variant: "error",
@@ -1014,7 +1016,8 @@ export function Prompt(props: PromptProps) {
         return true
       }
 
-      sessionID = res.data.id
+      sessionID = res.data.data.id
+      session = res.data.data
     }
 
     const inputText = expandTrackedPastedText(
@@ -1054,7 +1057,7 @@ export function Prompt(props: PromptProps) {
       move.startSubmit()
       void sdk.client.session.shell({
         sessionID,
-        agent: agent.name,
+        agent: agent.id,
         model: {
           providerID: selectedModel.providerID,
           modelID: selectedModel.modelID,
@@ -1078,39 +1081,73 @@ export function Prompt(props: PromptProps) {
         sessionID,
         command: command.slice(1),
         arguments: args,
-        agent: agent.name,
+        agent: agent.id,
         model: `${selectedModel.providerID}/${selectedModel.modelID}`,
         variant,
         parts: nonTextParts.filter((x) => x.type === "file"),
       })
     } else {
       move.startSubmit()
-      sdk.client.session
-        .prompt(
+      if (!session) {
+        await data.session.refresh(sessionID)
+        session = data.session.get(sessionID)
+      }
+      if (session?.agent !== agent.id) {
+        await sdk.client.v2.session.switchAgent({ sessionID, agent: agent.id }, { throwOnError: true })
+      }
+      if (
+        session?.model?.providerID !== selectedModel.providerID ||
+        session.model.id !== selectedModel.modelID ||
+        session.model.variant !== variant
+      ) {
+        await sdk.client.v2.session.switchModel(
           {
             sessionID,
-            ...selectedModel,
-            agent: agent.name,
-            model: selectedModel,
-            variant,
-            parts: [
-              ...editorParts,
-              {
-                type: "text",
-                text: inputText,
-              },
-              ...nonTextParts,
-            ],
+            model: { providerID: selectedModel.providerID, id: selectedModel.modelID, variant },
           },
           { throwOnError: true },
         )
-        .catch((error) => {
-          toast.show({
-            title: "Failed to send prompt",
-            message: errorMessage(error),
-            variant: "error",
-          })
-        })
+      }
+      const result = await sdk.client.v2.session.prompt({
+        sessionID,
+        prompt: {
+          text: [...editorParts.map((part) => part.text), inputText].filter(Boolean).join("\n\n"),
+          files: nonTextParts.flatMap((part) =>
+            part.type === "file"
+              ? [
+                  {
+                    uri: part.url,
+                    mime: part.mime,
+                    name: part.filename,
+                    source: part.source
+                      ? {
+                          start: part.source.text.start,
+                          end: part.source.text.end,
+                          text: part.source.text.value,
+                        }
+                      : undefined,
+                  },
+                ]
+              : [],
+          ),
+          agents: nonTextParts.flatMap((part) =>
+            part.type === "agent"
+              ? [
+                  {
+                    name: part.name,
+                    source: part.source
+                      ? { start: part.source.start, end: part.source.end, text: part.source.value }
+                      : undefined,
+                  },
+                ]
+              : [],
+          ),
+        },
+      })
+      if (result.error) {
+        toast.show({ title: "Failed to send prompt", message: errorMessage(result.error), variant: "error" })
+        return false
+      }
       if (editorParts.length > 0) editor.markSelectionSent()
     }
     history.append({
@@ -1284,7 +1321,7 @@ export function Prompt(props: PromptProps) {
     if (store.mode === "shell") return theme.primary
     const agent = local.agent.current()
     if (!agent) return theme.border
-    return local.agent.color(agent.name)
+    return local.agent.color(agent.id)
   })
 
   const showVariant = createMemo(() => {
@@ -1316,9 +1353,9 @@ export function Prompt(props: PromptProps) {
   const spinnerDef = createMemo(() => {
     const agent =
       status().type !== "idle"
-        ? (local.agent.list().find((a) => a.name === lastUserMessage()?.agent) ?? local.agent.current())
+        ? (local.agent.list().find((agent) => agent.id === lastUserMessage()?.agent) ?? local.agent.current())
         : local.agent.current()
-    const color = agent ? local.agent.color(agent.name) : theme.border
+    const color = agent ? local.agent.color(agent.id) : theme.border
     return {
       frames: createFrames({
         color,
@@ -1439,7 +1476,7 @@ export function Prompt(props: PromptProps) {
                   {(agent) => (
                     <>
                       <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
+                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().id)}
                       </text>
                       <Show when={store.mode === "normal"}>
                         <box flexDirection="row" gap={1}>

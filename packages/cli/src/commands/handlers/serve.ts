@@ -6,6 +6,8 @@ import * as Effect from "effect/Effect"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { createServer } from "node:http"
 import { createRoutes } from "@opencode-ai/server/routes"
+import { ServerAuth } from "@opencode-ai/server/auth"
+import { createOpencodeClient } from "@opencode-ai/sdk/v2/client"
 import { Commands } from "../commands"
 import { Runtime } from "../../framework/runtime"
 import { Daemon } from "../../services/daemon"
@@ -16,11 +18,22 @@ export default Runtime.handler(
     return yield* Effect.scoped(
       Effect.gen(function* () {
         const daemon = yield* Daemon.Service
-        const address = yield* listen(input.hostname, input.port, yield* daemon.password())
+        const standalonePassword = process.env.OPENCODE_SERVER_PASSWORD
+        if (input.stdio) delete process.env.OPENCODE_SERVER_PASSWORD
+        const password = input.stdio ? standalonePassword : yield* daemon.password()
+        if (!password) return yield* Effect.fail(new Error("Missing server password"))
+        const address = yield* listen(input.hostname, input.port, password)
+        yield* Effect.tryPromise(() =>
+          createOpencodeClient({
+            baseUrl: HttpServer.formatAddress(address),
+            headers: ServerAuth.headers({ password }),
+          }).v2.location.get(undefined, { throwOnError: true }),
+        )
         if (input.register) yield* daemon.register(address)
-        console.log(`server listening on ${HttpServer.formatAddress(address)}`)
+        const url = HttpServer.formatAddress(address)
+        console.log(input.stdio ? JSON.stringify({ url }) : `server listening on ${url}`)
         return yield* Effect.never
-      }),
+      }).pipe(Effect.annotateLogs({ role: "server" })),
     )
   }),
 )

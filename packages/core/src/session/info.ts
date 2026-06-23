@@ -8,12 +8,15 @@ import { AbsolutePath, RelativePath } from "../schema"
 import { WorkspaceV2 } from "../workspace"
 import { SessionSchema } from "./schema"
 import { SessionTable } from "./sql"
+import { SessionMessageID } from "./message-id"
 
 export function fromRow(row: typeof SessionTable.$inferSelect): SessionSchema.Info {
   return SessionSchema.Info.make({
     id: SessionSchema.ID.make(row.id),
     projectID: ProjectV2.ID.make(row.project_id),
     title: row.title,
+    share: row.share_url ? { url: row.share_url } : undefined,
+    revert: row.revert ? { messageID: SessionMessageID.ID.make(row.revert.messageID) } : undefined,
     parentID: row.parent_id ? SessionSchema.ID.make(row.parent_id) : undefined,
     agent: row.agent ? AgentV2.ID.make(row.agent) : undefined,
     model: row.model

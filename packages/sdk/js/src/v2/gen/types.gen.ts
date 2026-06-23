@@ -3739,6 +3739,12 @@ export type SessionV2Info = {
     archived?: number
   }
   title: string
+  share?: {
+    url: string
+  }
+  revert?: {
+    messageID: string
+  }
   location: LocationRef
   subpath?: string
 }
