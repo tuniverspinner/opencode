@@ -22,6 +22,10 @@ export const ModelsCommand = effectCmd({
       .option("refresh", {
         describe: "refresh the models cache from models.dev",
         type: "boolean",
+      })
+      .option("connected", {
+        describe: "only show models from providers with stored credentials",
+        type: "boolean",
       }),
   handler: Effect.fn("Cli.models")(function* (args) {
     const { Provider } = yield* Effect.promise(() => import("@/provider/provider"))
@@ -33,8 +37,14 @@ export const ModelsCommand = effectCmd({
     const provider = yield* Provider.Service
     const providers = yield* provider.list()
 
+    const connected = (id: string) => {
+      const p = providers[id as ProviderV2.ID]
+      return p?.source === "api" || p?.source === "env"
+    }
+
     const print = (providerID: ProviderV2.ID, verbose?: boolean) => {
       const p = providers[providerID]
+      if (!p) return
       const sorted = Object.entries(p.models).sort(([a], [b]) => a.localeCompare(b))
       for (const [modelID, model] of sorted) {
         process.stdout.write(`${providerID}/${modelID}`)
@@ -53,7 +63,11 @@ export const ModelsCommand = effectCmd({
       return
     }
 
-    const ids = Object.keys(providers).sort((a, b) => {
+    const relevant = args.connected
+      ? Object.keys(providers).filter(connected)
+      : Object.keys(providers)
+
+    const ids = relevant.sort((a, b) => {
       const aIsOpencode = a.startsWith("opencode")
       const bIsOpencode = b.startsWith("opencode")
       if (aIsOpencode && !bIsOpencode) return -1

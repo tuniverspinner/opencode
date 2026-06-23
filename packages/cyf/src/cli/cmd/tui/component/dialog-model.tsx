@@ -17,6 +17,7 @@ export function DialogModel(props: { providerID?: string }) {
 
   const connected = useConnected()
   const providers = createDialogProviderOptions()
+  const connectedIDs = createMemo(() => new Set(sync.data.provider_next.connected))
 
   const showExtra = createMemo(() => connected() && !props.providerID)
 
@@ -58,8 +59,12 @@ export function DialogModel(props: { providerID?: string }) {
       "Recent",
     )
 
+    const visibleProviders = connected()
+      ? sync.data.provider.filter((p) => connectedIDs().has(p.id))
+      : sync.data.provider
+
     const providerOptions = pipe(
-      sync.data.provider,
+      visibleProviders,
       sortBy(
         (provider) => provider.id !== "opencode",
         (provider) => provider.name,
