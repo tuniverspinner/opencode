@@ -179,8 +179,7 @@ export class AuthorizationError extends Schema.TaggedErrorClass<AuthorizationErr
   cause: Schema.Defect(),
 }) {
   override get message() {
-    const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
-    return `Integration authorization failed${detail ? `: ${detail}` : ""}`
+    return "Integration authorization failed"
   }
 }
 
