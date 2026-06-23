@@ -5,7 +5,7 @@ import { Context, Effect, Layer } from "effect"
 import { Flock } from "./util/flock"
 import { Flag } from "./flag/flag"
 
-const app = "vajra"
+const app = "cyf"
 const root = path.join(process.env.CYF_TEST_HOME ?? os.homedir(), `.${app}`)
 const data = path.join(root, "data")
 const cache = path.join(root, "cache")

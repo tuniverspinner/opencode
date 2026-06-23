@@ -49,8 +49,8 @@ export function path() {
     process.env.CYF_DISABLE_CHANNEL_DB === "1" ||
     process.env.CYF_DISABLE_CHANNEL_DB === "true"
   )
-    return join(Global.Path.data, "vajra.db")
-  return join(Global.Path.data, `vajra-${InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")}.db`)
+    return join(Global.Path.data, "cyf.db")
+  return join(Global.Path.data, `cyf-${InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")}.db`)
 }
 
 export const defaultLayer = Layer.unwrap(
