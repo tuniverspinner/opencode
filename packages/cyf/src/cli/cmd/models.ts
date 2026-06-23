@@ -39,7 +39,7 @@ export const ModelsCommand = effectCmd({
 
     const connected = (id: string) => {
       const p = providers[id as ProviderV2.ID]
-      return p?.source === "api" || p?.source === "env"
+      return p?.source === "api"
     }
 
     const print = (providerID: ProviderV2.ID, verbose?: boolean) => {
