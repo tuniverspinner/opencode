@@ -48,7 +48,7 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       }
       const allProviders = yield* provider.list()
       const connectedIDs = Object.entries(allProviders)
-        .filter(([, p]) => p.source === "api")
+        .filter(([, p]) => p.key !== undefined)
         .map(([id]) => id)
       const providers = Object.assign(
         mapValues(filtered, (item) => Provider.fromModelsDevProvider(item)),
