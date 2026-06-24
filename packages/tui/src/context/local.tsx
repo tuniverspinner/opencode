@@ -364,13 +364,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             const m = currentModel()
             if (!m) return undefined
             const key = `${m.providerID}/${m.modelID}`
-            return modelStore.variant[key]
+            return modelStore.variant[key] ?? "default"
           },
           current() {
             const v = this.selected()
             if (!v) return undefined
-            if (!this.list().includes(v)) return undefined
-            return v
+            if (v !== "default" && this.list().includes(v)) return v
+            const m = currentModel()!
+            return (
+              data.location.model
+                .list()
+                ?.find((item) => item.providerID === m.providerID && item.id === m.modelID)?.request.variant ?? "default"
+            )
           },
           list() {
             const m = currentModel()
@@ -397,7 +402,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             }
             const index = variants.indexOf(current)
             if (index === -1 || index === variants.length - 1) {
-              this.set(undefined)
+              this.set(variants[0])
               return
             }
             this.set(variants[index + 1])

@@ -307,28 +307,20 @@ export function Prompt(props: PromptProps) {
     ),
   )
 
-  // Initialize agent/model/variant from last user message when session changes
+  // Initialize agent/model/variant from the durable V2 Session state.
   let syncedSessionID: string | undefined
   createEffect(() => {
     const sessionID = props.sessionID
-    const msg = lastUserMessage()
-
-    if (sessionID !== syncedSessionID) {
-      if (!sessionID || !msg) return
-
-      syncedSessionID = sessionID
-
-      // Only set agent if it's a primary agent (not a subagent)
-      const isPrimaryAgent = local.agent.list().some((agent) => agent.id === msg.agent)
-      if (msg.agent && isPrimaryAgent) {
-        // Keep command line --agent if specified.
-        if (!args.agent) local.agent.set(msg.agent)
-        if (msg.model) {
-          local.model.set(msg.model)
-          local.model.variant.set(msg.model.variant)
-        }
-      }
+    if (!sessionID || sessionID === syncedSessionID || !local.model.ready) return
+    const session = data.session.get(sessionID)
+    if (!session) return
+    const agent = session.agent && local.agent.list().find((agent) => agent.id === session.agent)
+    if (agent && !args.agent) local.agent.set(agent.id)
+    if (session.model) {
+      local.model.set({ providerID: session.model.providerID, modelID: session.model.id })
+      local.model.variant.set(session.model.variant)
     }
+    syncedSessionID = sessionID
   })
 
   const promptCommands = createMemo(() =>

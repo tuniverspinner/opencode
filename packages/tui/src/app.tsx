@@ -33,7 +33,7 @@ import { useEvent } from "./context/event"
 import { SDKProvider, useSDK } from "./context/sdk"
 import { StartupLoading } from "./component/startup-loading"
 import { SyncProvider, useSync } from "./context/sync"
-import { DataProvider } from "./context/data"
+import { DataProvider, useData } from "./context/data"
 import { LocationProvider } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
 import { DialogModel } from "./component/dialog-model"
@@ -371,6 +371,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const themeState = useTheme()
   const { theme, mode, setMode, locked, lock, unlock } = themeState
   const sync = useSync()
+  const data = useData()
   const project = useProject()
   const exit = useExit()
   const promptRef = usePromptRef()
@@ -495,9 +496,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   createEffect(() => {
     // When using -c, session list is loaded in blocking phase, so we can navigate at "partial"
     if (continued || sync.status === "loading" || !args.continue) return
-    const match = sync.data.session
-      .toSorted((a, b) => b.time.updated - a.time.updated)
-      .find((x) => x.parentID === undefined)?.id
+    const match = data.session.list().find((session) => !session.parentID)?.id
     if (match) {
       continued = true
       if (args.fork) {
@@ -553,7 +552,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         name: "session.list",
         title: "Switch session",
         category: "Session",
-        suggested: sync.data.session.length > 0,
+        suggested: data.session.list().length > 0,
         slashName: "sessions",
         slashAliases: ["resume", "continue"],
         run: () => {

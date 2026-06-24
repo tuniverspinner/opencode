@@ -1,5 +1,5 @@
 import { useProject } from "../../context/project"
-import { useSync } from "../../context/sync"
+import { useData } from "../../context/data"
 import { createMemo, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../config"
@@ -12,12 +12,12 @@ import { WorkspaceLabel } from "../../component/workspace-label"
 export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const pluginRuntime = usePluginRuntime()
   const project = useProject()
-  const sync = useSync()
+  const data = useData()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
-  const session = createMemo(() => sync.session.get(props.sessionID))
+  const session = createMemo(() => data.session.get(props.sessionID))
   const workspace = () => {
-    const workspaceID = session()?.workspaceID
+    const workspaceID = session()?.location.workspaceID
     if (!workspaceID) return
     return project.workspace.get(workspaceID)
   }
@@ -60,11 +60,13 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 <Show when={InstallationChannel !== "latest"}>
                   <text fg={theme.textMuted}>{props.sessionID}</text>
                 </Show>
-                <Show when={session()!.workspaceID}>
+                <Show when={session()!.location.workspaceID}>
                   <text fg={theme.textMuted}>
                     <Show
                       when={workspace()}
-                      fallback={<WorkspaceLabel type="unknown" name={session()!.workspaceID!} status="error" icon />}
+                      fallback={
+                        <WorkspaceLabel type="unknown" name={session()!.location.workspaceID!} status="error" icon />
+                      }
                     >
                       {(item) => (
                         <WorkspaceLabel

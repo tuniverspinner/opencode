@@ -415,6 +415,9 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
 
     const result = {
       session: {
+        list() {
+          return Object.values(store.session.info).toSorted((a, b) => b.time.updated - a.time.updated)
+        },
         get(sessionID: string) {
           return store.session.info[sessionID]
         },
@@ -427,8 +430,25 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
             return store.session.message[sessionID]
           },
           async refresh(sessionID: string) {
-            const result = await sdk.client.v2.session.messages({ sessionID }, { throwOnError: true })
-            setStore("session", "message", sessionID, result.data.data)
+            setStore("session", "message", sessionID, [])
+            const load = async (cursor?: string, messages: SessionMessage[] = []): Promise<SessionMessage[]> => {
+              const result = await sdk.client.v2.session.messages(
+                cursor ? { sessionID, limit: 200, cursor } : { sessionID, limit: 200, order: "desc" },
+                { throwOnError: true },
+              )
+              const next = [...messages, ...result.data.data]
+              return result.data.cursor.next ? load(result.data.cursor.next, next) : next
+            }
+            const loaded = await load()
+            const live = new Map((store.session.message[sessionID] ?? []).map((message) => [message.id, message]))
+            setStore(
+              "session",
+              "message",
+              sessionID,
+              [...loaded.map((message) => live.get(message.id) ?? message), ...live.values()]
+                .filter((message, index, messages) => messages.findIndex((item) => item.id === message.id) === index)
+                .toSorted((a, b) => b.time.created - a.time.created),
+            )
           },
         },
         permission: {
@@ -550,6 +570,17 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
 
     onMount(() => {
       void Promise.allSettled([
+        sdk.client.v2.session
+          .list({ limit: 50, order: "desc" }, { throwOnError: true })
+          .then((response) =>
+            setStore(
+              "session",
+              "info",
+              produce((draft) => {
+                for (const session of response.data.data) draft[session.id] = session
+              }),
+            ),
+          ),
         result.location.refresh(),
         result.location.agent.refresh(),
         result.location.integration.refresh(),
