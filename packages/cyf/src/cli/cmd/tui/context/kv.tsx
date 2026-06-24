@@ -10,7 +10,7 @@ import path from "path"
 export const { use: useKV, provider: KVProvider } = createSimpleContext({
   name: "KV",
   init: () => {
-    const [ready, setReady] = createSignal(false)
+    const [loaded, setLoaded] = createSignal(false)
     const [store, setStore] = createStore<Record<string, any>>()
     const filePath = path.join(Global.Path.state, "kv.json")
     const lock = `tui-kv:${filePath}`
@@ -37,12 +37,12 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
         console.error("Failed to read KV state", { filePath, error })
       })
       .finally(() => {
-        setReady(true)
+        setLoaded(true)
       })
 
     const result = {
       get ready() {
-        return ready()
+        return loaded()
       },
       get store() {
         return store

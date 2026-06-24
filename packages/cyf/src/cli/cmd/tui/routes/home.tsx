@@ -59,7 +59,8 @@ export function Home() {
     const r = ref()
     if (sent) return
     if (!r) return
-    if (!sync.ready || !local.model.ready) return
+    if (sync.status !== "complete" || !local.model.ready) return
+
     if (!args.prompt) return
     if (r.current.input !== args.prompt) return
     sent = true

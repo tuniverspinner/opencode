@@ -114,6 +114,11 @@ export const TuiThreadCommand = cmd({
   handler: async (args) => {
     bootTrace("TUI: handler start")
 
+    // Pre-warm: start the app.tsx dynamic import in parallel with handler setup.
+    // This overlaps @opentui/core + @opentui/solid module loading with worker spawn + transport.
+    // prepare-tui-session.ts:60 will await the same import and get the cached module instantly.
+    void import("./app")
+
     const prompt = await input(args.prompt)
 
     const next = resolveThreadDirectory(args.project)
@@ -222,6 +227,7 @@ export const TuiThreadCommand = cmd({
         }
       },
       afterValidate: () => {
+        bootTrace("TUI: after validate (transport ready)")
         setTimeout(() => {
           client.call("checkUpgrade", { directory: cwd }).catch(() => {})
         }, 1000).unref?.()

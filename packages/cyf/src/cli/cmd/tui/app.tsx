@@ -117,6 +117,11 @@ type TuiLifecycle = {
   fail(error: unknown): Promise<never>
 }
 
+// TUI entry point for `cyf` (no args) — Path A.
+// This is the path Ivan uses. TTFD is measured by <TimeToFirstDraw /> from @opentui/solid.
+// The other TUI path (`cyf run --interactive`) lives in runtime.ts → runtime.lifecycle.ts —
+// it has its own TTFD measurement at runtime.ts:439 and its own renderer.idle() call.
+// Do not conflate the two paths when instrumenting or optimizing.
 export function tui(input: TuiInput): TuiHandle {
   bootTrace("TUI: tui entry")
   const unguard = win32InstallCtrlCGuard()
@@ -144,7 +149,9 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
   const renderer = input.renderer
   // Prewarm palette before ThemeProvider mounts so `system` theme avoids a first-paint fallback flash.
   void renderer.getPalette({ size: 16 }).catch(() => undefined)
+  bootTrace("TUI: before waitForThemeMode")
   const mode = (await renderer.waitForThemeMode(1000)) ?? "dark"
+  bootTrace("TUI: after waitForThemeMode")
   if (renderer.isDestroyed) return
 
   bootTrace("TUI: before Solid render")
@@ -156,54 +163,60 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
         <OpencodeKeymapProvider keymap={input.keymap}>
           <ArgsProvider {...input.args}>
             <ExitProvider exit={input.exit}>
-              <KVProvider>
-                <ToastProvider>
-                  <RouteProvider
-                    initialRoute={
-                      input.args.continue
-                        ? {
-                            type: "session",
-                            sessionID: "dummy",
-                          }
-                        : undefined
-                    }
-                  >
-                    <TuiConfigProvider config={input.config}>
-                      <SDKProvider
-                        url={input.url}
-                        directory={input.directory}
-                        fetch={input.fetch}
-                        headers={input.headers}
-                        events={input.events}
-                      >
-                        <ProjectProvider>
-                          <SyncProvider>
-                            <SyncProviderV2>
-                              <ThemeProvider mode={mode}>
-                                <LocalProvider>
-                                  <PromptStashProvider>
-                                    <DialogProvider>
-                                      <FrecencyProvider>
-                                        <PromptHistoryProvider>
-                                          <PromptRefProvider>
-                                            <EditorContextProvider>
-                                              <App onSnapshot={input.onSnapshot} />
-                                            </EditorContextProvider>
-                                          </PromptRefProvider>
-                                        </PromptHistoryProvider>
-                                      </FrecencyProvider>
-                                    </DialogProvider>
-                                  </PromptStashProvider>
-                                </LocalProvider>
-                              </ThemeProvider>
-                            </SyncProviderV2>
-                          </SyncProvider>
-                        </ProjectProvider>
-                      </SDKProvider>
-                    </TuiConfigProvider>
-                  </RouteProvider>
-                </ToastProvider>
-              </KVProvider>
+              <ProviderGate name="KVProvider">
+                <KVProvider>
+                  <ToastProvider>
+                    <RouteProvider
+                      initialRoute={
+                        input.args.continue
+                          ? {
+                              type: "session",
+                              sessionID: "dummy",
+                            }
+                          : undefined
+                      }
+                    >
+                      <TuiConfigProvider config={input.config}>
+                        <SDKProvider
+                          url={input.url}
+                          directory={input.directory}
+                          fetch={input.fetch}
+                          headers={input.headers}
+                          events={input.events}
+                        >
+                          <ProjectProvider>
+                            <ProviderGate name="SyncProvider">
+                              <SyncProvider>
+                                <SyncProviderV2>
+                                  <ProviderGate name="ThemeProvider">
+                                    <ThemeProvider mode={mode}>
+                                      <LocalProvider>
+                                        <PromptStashProvider>
+                                          <DialogProvider>
+                                            <FrecencyProvider>
+                                              <PromptHistoryProvider>
+                                                <PromptRefProvider>
+                                                  <EditorContextProvider>
+                                                    <App onSnapshot={input.onSnapshot} />
+                                                  </EditorContextProvider>
+                                                </PromptRefProvider>
+                                              </PromptHistoryProvider>
+                                            </FrecencyProvider>
+                                          </DialogProvider>
+                                        </PromptStashProvider>
+                                      </LocalProvider>
+                                    </ThemeProvider>
+                                  </ProviderGate>
+                                </SyncProviderV2>
+                              </SyncProvider>
+                            </ProviderGate>
+                          </ProjectProvider>
+                        </SDKProvider>
+                      </TuiConfigProvider>
+                    </RouteProvider>
+                  </ToastProvider>
+                </KVProvider>
+              </ProviderGate>
             </ExitProvider>
           </ArgsProvider>
         </OpencodeKeymapProvider>
@@ -211,6 +224,7 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
     )
   }, renderer)
   bootTrace("TUI: after Solid render (first paint)")
+  bootTrace("TUI: before first frame flush")
 }
 
 function createTuiLifecycle(input: {
@@ -289,6 +303,16 @@ function createTuiLifecycle(input: {
 async function waitUntilDone(ready: Promise<void>, exited: Promise<void>) {
   await ready
   await exited
+}
+
+function TtfdTrailmark() {
+  onMount(() => bootTrace("TUI: TTFD (real terminal paint)"))
+  return null
+}
+
+function ProviderGate(props: { name: string; children: any }) {
+  onMount(() => bootTrace(`TUI: provider ready: ${props.name}`))
+  return props.children
 }
 
 function App(props: { onSnapshot?: () => Promise<string[]> }) {
@@ -564,6 +588,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     >
       <Show when={Flag.CYF_SHOW_TTFD}>
         <TimeToFirstDraw />
+        <TtfdTrailmark />
       </Show>
       <Show when={ready()}>
         <box flexGrow={1} minHeight={0} flexDirection="column">

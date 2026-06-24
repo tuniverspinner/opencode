@@ -434,7 +434,10 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         .then(loadCatalog)
         .catch(() => {})
 
+      __tui("footer.idle dispatched, loadCatalog queued")
+
       const ttfd = Math.max(0, Math.round(performance.now() - start))
+      __tui(`TTFD measured: ${ttfd}ms`)
       if (process.env.CYF_BOOT_PROFILE === "1") {
         process.stderr.write(`[boot-profile] ttfd ${ttfd}ms\n`)
       }

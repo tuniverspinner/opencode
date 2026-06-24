@@ -1,5 +1,9 @@
 // Lifecycle management for the split-footer renderer.
 //
+// This is Path B: `cyf run --interactive`. Ivan's normal `cyf` command (no args)
+// uses Path A (thread.ts → app.tsx) and never enters this file. The renderer.idle()
+// cap below is valid for this path but does not affect the `cyf` (no args) TTFD.
+//
 // Creates the OpenTUI CliRenderer in split-footer mode, resolves the theme
 // from the terminal palette, writes the entry splash to scrollback, and
 // constructs the RunFooter. Returns a Lifecycle handle whose close() writes
@@ -220,10 +224,15 @@ export async function createRuntimeLifecycle(input: LifecycleInput): Promise<Lif
             showSession: splash.showSession,
           }),
         )
-        await renderer.idle().catch(() => {})
+        __lt("before renderer idle (splash queued)")
+        await Promise.race([
+          renderer.idle().catch(() => {}),
+          new Promise<void>((resolve) => setTimeout(resolve, 100)),
+        ])
         __lt("after renderer idle (splash visible)")
 
         const { RunFooter } = await footerTask
+        __lt("footer module imported")
 
         const labels = footerLabels({
           agent: input.agent,
