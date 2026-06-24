@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import type { IntegrationInfo } from "@opencode-ai/sdk/v2"
-import { connectMethods, integrationOptions } from "../../../../src/component/dialog-integration"
+import {
+  connectionSummary,
+  connectMethods,
+  credentialConnections,
+  integrationOptions,
+} from "../../../../src/component/dialog-integration"
 
 const integration = (value: Partial<IntegrationInfo> & Pick<IntegrationInfo, "id" | "name">): IntegrationInfo => ({
   methods: [],
@@ -35,6 +40,40 @@ describe("connectMethods", () => {
           ],
         }),
       ).map((method) => method.type),
-    ).toEqual(["key", "oauth"])
+    ).toEqual(["oauth", "key"])
+  })
+})
+
+describe("credentialConnections", () => {
+  test("returns removable credential connections only", () => {
+    expect(
+      credentialConnections(
+        integration({
+          id: "example",
+          name: "Example",
+          connections: [
+            { type: "env", name: "EXAMPLE_KEY" },
+            { type: "credential", id: "cred_1", label: "Work" },
+          ],
+        }),
+      ),
+    ).toEqual([{ type: "credential", id: "cred_1", label: "Work" }])
+  })
+})
+
+describe("connectionSummary", () => {
+  test("shows credential labels and environment variables", () => {
+    expect(
+      connectionSummary(
+        integration({
+          id: "example",
+          name: "Example",
+          connections: [
+            { type: "credential", id: "cred_1", label: "Work" },
+            { type: "env", name: "EXAMPLE_KEY" },
+          ],
+        }),
+      ),
+    ).toBe("Work, $EXAMPLE_KEY")
   })
 })

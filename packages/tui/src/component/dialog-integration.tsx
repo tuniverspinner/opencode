@@ -1,5 +1,5 @@
 import { TextAttributes } from "@opentui/core"
-import type { IntegrationInfo, IntegrationOAuthMethod, IntegrationAttempt } from "@opencode-ai/sdk/v2"
+import type { ConnectionInfo, IntegrationInfo, IntegrationOAuthMethod, IntegrationAttempt } from "@opencode-ai/sdk/v2"
 import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { useClipboard } from "../context/clipboard"
 import { useData } from "../context/data"
@@ -33,7 +33,21 @@ export function integrationOptions(list: IntegrationInfo[]) {
 }
 
 export function connectMethods(integration: IntegrationInfo): ConnectMethod[] {
-  return integration.methods.filter((method): method is ConnectMethod => method.type !== "env")
+  return integration.methods
+    .filter((method): method is ConnectMethod => method.type !== "env")
+    .toSorted((a, b) => Number(a.type === "key") - Number(b.type === "key"))
+}
+
+export function credentialConnections(integration: IntegrationInfo) {
+  return integration.connections.filter(
+    (connection): connection is Extract<ConnectionInfo, { type: "credential" }> => connection.type === "credential",
+  )
+}
+
+export function connectionSummary(integration: IntegrationInfo) {
+  return integration.connections
+    .map((connection) => (connection.type === "credential" ? connection.label : `$${connection.name}`))
+    .join(", ")
 }
 
 export function DialogIntegration() {
@@ -48,10 +62,14 @@ export function DialogIntegration() {
         title: integration.name,
         value: integration.id,
         description: methods.length ? undefined : "Environment only",
+        footer: connectionSummary(integration) || undefined,
         category: integration.id in INTEGRATION_PRIORITY ? "Popular" : "Services",
         disabled: methods.length === 0,
         gutter: connected ? () => <text fg={theme.success}>✓</text> : undefined,
-        onSelect: () => selectMethod(integration, methods, dialog),
+        onSelect: () =>
+          credentialConnections(integration).length
+            ? manageConnections(integration, methods, dialog)
+            : selectMethod(integration, methods, dialog),
       }
     }),
   )
@@ -63,6 +81,47 @@ export function DialogIntegration() {
       emptyView={<text fg={theme.textMuted}>No integrations available</text>}
     />
   )
+}
+
+function manageConnections(
+  integration: IntegrationInfo,
+  methods: ConnectMethod[],
+  dialog: ReturnType<typeof useDialog>,
+) {
+  dialog.replace(() => {
+    const data = useData()
+    const sdk = useSDK()
+    const toast = useToast()
+    return (
+      <DialogSelect
+        title={integration.name}
+        options={[
+          ...(methods.length
+            ? [
+                {
+                  title: "Add connection",
+                  value: "add",
+                  onSelect: () => selectMethod(integration, methods, dialog),
+                },
+              ]
+            : []),
+          ...credentialConnections(integration).map((connection) => ({
+            title: `Disconnect ${connection.label}`,
+            value: connection.id,
+            onSelect: () => {
+              void sdk.client.v2.credential
+                .remove(
+                  { credentialID: connection.id, location: location(data) },
+                  { throwOnError: true },
+                )
+                .then(() => disconnected(integration.name, data, dialog, toast))
+                .catch(toast.error)
+            },
+          })),
+        ]}
+      />
+    )
+  })
 }
 
 function selectMethod(
@@ -77,7 +136,6 @@ function selectMethod(
       options={methods.map((method) => ({
         title: method.type === "key" ? (method.label ?? "API key") : method.label,
         value: method.type === "key" ? "key" : method.id,
-        description: method.type === "oauth" ? "OAuth" : undefined,
         onSelect: () => openMethod(integration, method, dialog),
       }))}
     />
@@ -380,6 +438,17 @@ async function connected(
 ) {
   await Promise.all([data.location.integration.refresh(), data.location.model.refresh(), data.location.provider.refresh()])
   toast.show({ variant: "success", message: `Connected ${name}` })
+  dialog.clear()
+}
+
+async function disconnected(
+  name: string,
+  data: ReturnType<typeof useData>,
+  dialog: ReturnType<typeof useDialog>,
+  toast: ReturnType<typeof useToast>,
+) {
+  await Promise.all([data.location.integration.refresh(), data.location.model.refresh(), data.location.provider.refresh()])
+  toast.show({ variant: "success", message: `Disconnected ${name}` })
   dialog.clear()
 }
 
