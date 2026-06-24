@@ -180,9 +180,15 @@ function localMcpEnvironment(command: string, environment?: Record<string, strin
       return [[key, value] as const]
     }),
   )
-  return {
+  const defaults = {
     ...inherited,
     ...(command === "opencode" ? { BUN_BE_BUN: "1" } : {}),
+  }
+  if (process.platform !== "win32" || !environment) return { ...defaults, ...environment }
+
+  const configured = new Set(Object.keys(environment).map((key) => key.toUpperCase()))
+  return {
+    ...Object.fromEntries(Object.entries(defaults).filter(([key]) => !configured.has(key.toUpperCase()))),
     ...environment,
   }
 }
