@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js"
+// @ts-expect-error Bun's query cache key avoids process-global module mocks from other test files.
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js?oauth-header-isolation"
 
 const canary = "resource-secret"
 const staticAuthorization = "Bearer static-resource-token"
@@ -57,7 +57,7 @@ describe("MCP OAuth header isolation", () => {
     })
 
     await transport.start()
-    await expect(transport.send(request())).rejects.toBeInstanceOf(UnauthorizedError)
+    await expect(transport.send(request())).rejects.toThrow("Unauthorized")
     await transport.finishAuth("authorization-code")
     await transport.close()
 
