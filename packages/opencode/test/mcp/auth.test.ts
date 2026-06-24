@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { setTimeout as sleep } from "node:timers/promises"
-import { Effect, Layer } from "effect"
+import { Deferred, Effect, Fiber, Layer } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
 import { McpAuth } from "../../src/mcp/auth"
@@ -53,6 +53,20 @@ function authService(layer: Layer.Layer<FSUtil.Service>) {
   )
 }
 
+function gateCredentialInvalidation(
+  auth: McpAuth.Interface,
+  ready: Deferred.Deferred<void>,
+  release: Deferred.Deferred<void>,
+) {
+  const gate = Deferred.succeed(ready, undefined).pipe(Effect.ignore, Effect.andThen(Deferred.await(release)))
+  return McpAuth.Service.of({
+    ...auth,
+    get: (mcpName) => auth.get(mcpName).pipe(Effect.tap(() => gate)),
+    clearTokens: (mcpName) => gate.pipe(Effect.andThen(auth.clearTokens(mcpName))),
+    clearClientInfo: (mcpName) => gate.pipe(Effect.andThen(auth.clearClientInfo(mcpName))),
+  })
+}
+
 test("serializes concurrent auth file updates across service instances", async () => {
   const file = authFile()
 
@@ -86,16 +100,22 @@ test("concurrent token invalidation does not overwrite newer client registration
     Effect.gen(function* () {
       const first = yield* McpAuth.Service
       const second = yield* authService(FSUtil.defaultLayer)
-      const provider = new McpOAuthProvider(name, url, {}, { onRedirect: async () => {} }, first)
+      const ready = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const provider = new McpOAuthProvider(
+        name,
+        url,
+        {},
+        { onRedirect: async () => {} },
+        gateCredentialInvalidation(first, ready, release),
+      )
 
       yield* first.updateTokens(name, { accessToken: "old-token" }, url)
-      yield* Effect.all(
-        [
-          Effect.promise(() => provider.invalidateCredentials("tokens")),
-          second.updateClientInfo(name, { clientId: "new-client" }, url),
-        ],
-        { concurrency: "unbounded" },
-      )
+      const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("tokens")).pipe(Effect.forkChild)
+      yield* Deferred.await(ready)
+      yield* second.updateClientInfo(name, { clientId: "new-client" }, url)
+      yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
+      yield* Fiber.join(invalidation)
 
       const entry = yield* first.get(name)
       expect(entry?.tokens).toBeUndefined()
@@ -114,16 +134,22 @@ test("concurrent client invalidation does not overwrite newer tokens", async () 
     Effect.gen(function* () {
       const first = yield* McpAuth.Service
       const second = yield* authService(FSUtil.defaultLayer)
-      const provider = new McpOAuthProvider(name, url, {}, { onRedirect: async () => {} }, first)
+      const ready = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const provider = new McpOAuthProvider(
+        name,
+        url,
+        {},
+        { onRedirect: async () => {} },
+        gateCredentialInvalidation(first, ready, release),
+      )
 
       yield* first.updateClientInfo(name, { clientId: "old-client" }, url)
-      yield* Effect.all(
-        [
-          Effect.promise(() => provider.invalidateCredentials("client")),
-          second.updateTokens(name, { accessToken: "new-token" }, url),
-        ],
-        { concurrency: "unbounded" },
-      )
+      const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("client")).pipe(Effect.forkChild)
+      yield* Deferred.await(ready)
+      yield* second.updateTokens(name, { accessToken: "new-token" }, url)
+      yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
+      yield* Fiber.join(invalidation)
 
       const entry = yield* first.get(name)
       expect(entry?.clientInfo).toBeUndefined()
