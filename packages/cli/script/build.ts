@@ -91,6 +91,7 @@ for (const item of targets) {
       OPENCODE_CLI_NAME: `'${binary}'`,
       OPENCODE_MODELS_DEV: modelsData,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
+      OPENCODE_LOCAL_BUILD: String(Script.local),
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
       // FFF_LIBC selects the fff native lib variant: "musl" or "gnu".
       FFF_LIBC: item.os === "linux" ? `'${item.abi ?? "gnu"}'` : "undefined",

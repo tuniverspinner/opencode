@@ -30,6 +30,7 @@ const CHANNEL = await (async () => {
   return await $`git branch --show-current`.text().then((x) => x.trim())
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
+const IS_LOCAL = !env.OPENCODE_BUMP && !env.OPENCODE_VERSION && !env.OPENCODE_RELEASE && !process.env.CI
 
 const VERSION = await (async () => {
   if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
@@ -66,6 +67,9 @@ export const Script = {
   },
   get preview() {
     return IS_PREVIEW
+  },
+  get local() {
+    return IS_LOCAL
   },
   get release(): boolean {
     return !!env.OPENCODE_RELEASE

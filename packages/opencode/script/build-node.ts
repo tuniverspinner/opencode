@@ -22,6 +22,7 @@ await Bun.build({
   define: {
     OPENCODE_MODELS_DEV: generated.modelsData,
     OPENCODE_CHANNEL: `'${Script.channel}'`,
+    OPENCODE_LOCAL_BUILD: String(Script.local),
   },
   files: {
     "opencode-web-ui.gen.ts": "",
