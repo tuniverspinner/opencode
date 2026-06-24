@@ -4088,6 +4088,7 @@ export type ModelV2Info = {
 
 export type ProviderV2Info = {
   id: string
+  integrationID?: string
   name: string
   disabled?: boolean
   api:
@@ -4212,7 +4213,6 @@ export type PermissionSavedInfo = {
 export type FileSystemEntry = {
   path: string
   type: "file" | "directory"
-  mime: string
 }
 
 export type CommandV2Info = {
