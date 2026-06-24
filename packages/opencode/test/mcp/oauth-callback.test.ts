@@ -20,6 +20,26 @@ async function getFreeLoopbackPort(): Promise<number> {
   })
 }
 
+async function listen(server: ReturnType<typeof createNetServer>, port = 0): Promise<number> {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject)
+    server.listen(port, "127.0.0.1", () => {
+      const address = server.address()
+      if (typeof address === "object" && address) return resolve(address.port)
+      reject(new Error("Could not listen on loopback"))
+    })
+  })
+}
+
+async function close(server: ReturnType<typeof createNetServer>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) return reject(error)
+      resolve()
+    })
+  })
+}
+
 async function canConnect(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host, port })
@@ -110,5 +130,45 @@ describe("McpOAuthCallback.ensureRunning", () => {
 
     expect(await canConnect("127.0.0.1", port)).toBe(true)
     expect(await canConnect("::1", port)).toBe(false)
+  })
+
+  test("rejects an occupied port and starts there after it is released", async () => {
+    const blocker = createNetServer()
+    const port = await listen(blocker)
+    const redirectUri = `http://127.0.0.1:${port}/custom/callback`
+
+    await expect(McpOAuthCallback.ensureRunning(redirectUri)).rejects.toThrow(
+      new RegExp(`OAuth callback port ${port} is already in use.*oauth\\.callbackPort.*oauth\\.redirectUri`),
+    )
+    expect(McpOAuthCallback.isRunning()).toBe(false)
+
+    await close(blocker)
+    await McpOAuthCallback.ensureRunning(redirectUri)
+    expect(McpOAuthCallback.isRunning()).toBe(true)
+  })
+
+  test("serializes concurrent starts for the same endpoint", async () => {
+    const port = await getFreeLoopbackPort()
+    const redirectUri = `http://127.0.0.1:${port}/custom/callback`
+
+    await Promise.all([
+      McpOAuthCallback.ensureRunning(redirectUri),
+      McpOAuthCallback.ensureRunning(redirectUri),
+      McpOAuthCallback.ensureRunning(redirectUri),
+    ])
+
+    expect(McpOAuthCallback.isRunning()).toBe(true)
+  })
+
+  test("releases the callback port when stopped", async () => {
+    const port = await getFreeLoopbackPort()
+    await McpOAuthCallback.ensureRunning(`http://127.0.0.1:${port}/custom/callback`)
+
+    await McpOAuthCallback.stop()
+
+    const replacement = createNetServer()
+    await listen(replacement, port)
+    await close(replacement)
+    expect(McpOAuthCallback.isRunning()).toBe(false)
   })
 })

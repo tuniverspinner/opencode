@@ -1,4 +1,3 @@
-import { createConnection } from "net"
 import { createServer } from "http"
 import { escapeHtml } from "@/util/html"
 import { OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH, parseRedirectUri } from "./oauth-provider"
@@ -57,6 +56,7 @@ interface PendingAuth {
 }
 
 let server: ReturnType<typeof createServer> | undefined
+let starting: Promise<void> | undefined
 const pendingAuths = new Map<string, PendingAuth>()
 // Reverse index: mcpName → oauthState, so cancelPending(mcpName) can
 // find the right entry in pendingAuths (which is keyed by oauthState).
@@ -144,31 +144,49 @@ function handleRequest(req: import("http").IncomingMessage, res: import("http").
 }
 
 export async function ensureRunning(redirectUri?: string): Promise<void> {
-  // Parse the redirect URI to get port and path (uses defaults if not provided)
-  const { port, path } = parseRedirectUri(redirectUri)
-
-  // If server is running on a different port/path, stop it first
-  if (server && (currentPort !== port || currentPath !== path)) {
-    await stop()
+  if (starting) {
+    await starting
+    return ensureRunning(redirectUri)
   }
 
-  if (server) return
+  const operation = (async () => {
+    // Parse the redirect URI to get port and path (uses defaults if not provided)
+    const { port, path } = parseRedirectUri(redirectUri)
 
-  const running = await isPortInUse(port)
-  if (running) {
-    return
+    // If server is running on a different port/path, stop it first
+    if (server && (currentPort !== port || currentPath !== path)) await stop()
+    if (server) return
+
+    const candidate = createServer(handleRequest)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        candidate.once("error", reject)
+        candidate.listen(port, OAUTH_CALLBACK_HOST, resolve)
+      })
+    } catch (error) {
+      candidate.close()
+      if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
+        throw new Error(
+          `OAuth callback port ${port} is already in use. ` +
+            `Set "oauth.callbackPort" (or "oauth.redirectUri") on the MCP server ` +
+            `entry in your opencode config to use a different port.`,
+          { cause: error },
+        )
+      }
+      throw error
+    }
+
+    currentPort = port
+    currentPath = path
+    server = candidate
+  })()
+
+  starting = operation
+  try {
+    await operation
+  } finally {
+    starting = undefined
   }
-
-  currentPort = port
-  currentPath = path
-
-  server = createServer(handleRequest)
-  await new Promise<void>((resolve, reject) => {
-    server!.listen(currentPort, OAUTH_CALLBACK_HOST, () => {
-      resolve()
-    })
-    server!.on("error", reject)
-  })
 }
 
 export function waitForCallback(oauthState: string, mcpName?: string): Promise<string> {
@@ -199,19 +217,6 @@ export function cancelPending(mcpName: string): void {
     pending.reject(new Error("Authorization cancelled"))
     stopIfIdle()
   }
-}
-
-export async function isPortInUse(port: number = OAUTH_CALLBACK_PORT): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = createConnection(port, "127.0.0.1")
-    socket.on("connect", () => {
-      socket.destroy()
-      resolve(true)
-    })
-    socket.on("error", () => {
-      resolve(false)
-    })
-  })
 }
 
 export async function stop(): Promise<void> {
