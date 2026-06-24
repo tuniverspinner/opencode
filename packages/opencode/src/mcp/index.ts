@@ -800,6 +800,12 @@ export const layer = Layer.effect(
       const url = remoteURL(mcpConfig.url)
       if (!url) throw new Error(`Invalid MCP URL for "${mcpName}"`)
 
+      const pendingTransport = pendingOAuthTransports.get(mcpName)
+      McpOAuthCallback.cancelPending(mcpName)
+      pendingOAuthTransports.delete(mcpName)
+      yield* Effect.tryPromise(() => pendingTransport?.close() ?? Promise.resolve()).pipe(Effect.ignore)
+      yield* auth.resetForReauthentication(mcpName)
+
       // OAuth config is optional - if not provided, we'll use auto-discovery
       const oauthConfig = typeof mcpConfig.oauth === "object" ? mcpConfig.oauth : undefined
 

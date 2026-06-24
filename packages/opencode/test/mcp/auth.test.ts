@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
 import { McpAuth } from "../../src/mcp/auth"
+import { McpOAuthProvider } from "../../src/mcp/oauth-provider"
 
 function authFile() {
   let raw = ""
@@ -74,5 +75,61 @@ test("serializes concurrent auth file updates across service instances", async (
       expect(entry?.serverUrl).toBe("https://mcp.posthog.com/mcp")
       expect(() => JSON.parse(file.raw())).not.toThrow()
     }),
+  )
+})
+
+test("concurrent token invalidation does not overwrite newer client registration", async () => {
+  const name = `token-invalidation-${crypto.randomUUID()}`
+  const url = "https://mcp.example.com/exact/path"
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const first = yield* McpAuth.Service
+      const second = yield* authService(FSUtil.defaultLayer)
+      const provider = new McpOAuthProvider(name, url, {}, { onRedirect: async () => {} }, first)
+
+      yield* first.updateTokens(name, { accessToken: "old-token" }, url)
+      yield* Effect.all(
+        [
+          Effect.promise(() => provider.invalidateCredentials("tokens")),
+          second.updateClientInfo(name, { clientId: "new-client" }, url),
+        ],
+        { concurrency: "unbounded" },
+      )
+
+      const entry = yield* first.get(name)
+      expect(entry?.tokens).toBeUndefined()
+      expect(entry?.clientInfo?.clientId).toBe("new-client")
+      expect(entry?.serverUrl).toBe(url)
+      yield* first.remove(name)
+    }).pipe(Effect.provide(McpAuth.defaultLayer)),
+  )
+})
+
+test("concurrent client invalidation does not overwrite newer tokens", async () => {
+  const name = `client-invalidation-${crypto.randomUUID()}`
+  const url = "https://mcp.example.com/exact/path"
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const first = yield* McpAuth.Service
+      const second = yield* authService(FSUtil.defaultLayer)
+      const provider = new McpOAuthProvider(name, url, {}, { onRedirect: async () => {} }, first)
+
+      yield* first.updateClientInfo(name, { clientId: "old-client" }, url)
+      yield* Effect.all(
+        [
+          Effect.promise(() => provider.invalidateCredentials("client")),
+          second.updateTokens(name, { accessToken: "new-token" }, url),
+        ],
+        { concurrency: "unbounded" },
+      )
+
+      const entry = yield* first.get(name)
+      expect(entry?.clientInfo).toBeUndefined()
+      expect(entry?.tokens?.accessToken).toBe("new-token")
+      expect(entry?.serverUrl).toBe(url)
+      yield* first.remove(name)
+    }).pipe(Effect.provide(McpAuth.defaultLayer)),
   )
 })

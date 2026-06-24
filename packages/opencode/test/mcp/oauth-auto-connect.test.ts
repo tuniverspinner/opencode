@@ -23,6 +23,7 @@ let simulateAuthFlow = true
 let connectSucceedsImmediately = false
 let serverCapabilities: { tools?: object; resources?: object } = { tools: {} }
 let listToolsCalls = 0
+let transportCloseCount = 0
 
 // Mock the transport constructors to simulate OAuth auto-auth on 401
 void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
@@ -32,6 +33,7 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
           state?: () => Promise<string>
           redirectToAuthorization?: (url: URL) => Promise<void>
           saveCodeVerifier?: (v: string) => Promise<void>
+          tokens?: () => Promise<{ access_token: string } | undefined>
         }
       | undefined
     constructor(url: URL, options?: { authProvider?: unknown }) {
@@ -49,6 +51,7 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
       // It calls auth() which eventually calls provider.state(), then
       // provider.redirectToAuthorization(), then throws UnauthorizedError.
       if (simulateAuthFlow && this.authProvider) {
+        if (await this.authProvider.tokens?.()) throw new MockUnauthorizedError()
         // The SDK calls provider.state() to get the OAuth state parameter
         if (this.authProvider.state) {
           await this.authProvider.state()
@@ -66,6 +69,9 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
       throw new MockUnauthorizedError()
     }
     async finishAuth(_code: string) {}
+    async close() {
+      transportCloseCount++
+    }
   },
 }))
 
@@ -125,6 +131,7 @@ beforeEach(() => {
   connectSucceedsImmediately = false
   serverCapabilities = { tools: {} }
   listToolsCalls = 0
+  transportCloseCount = 0
 })
 
 // Import modules after mocking
@@ -133,6 +140,7 @@ const { EventV2Bridge } = await import("../../src/event-v2-bridge")
 const { Config } = await import("../../src/config/config")
 const { McpAuth } = await import("../../src/mcp/auth")
 const { McpOAuthProvider } = await import("../../src/mcp/oauth-provider")
+const { McpOAuthCallback } = await import("../../src/mcp/oauth-callback")
 const { FSUtil } = await import("@opencode-ai/core/fs-util")
 const { CrossSpawnSpawner } = await import("@opencode-ai/core/cross-spawn-spawner")
 
@@ -225,6 +233,45 @@ mcpTest.instance("state() returns existing state when one is saved", () =>
     const state = yield* Effect.promise(() => provider.state())
     expect(state).toBe(existingState)
   }),
+)
+
+mcpTest.instance(
+  "reauthentication starts fresh while preserving dynamic client registration",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore))
+      const mcp = yield* MCP.Service
+      const auth = yield* McpAuth.Service
+      const name = "test-reauth"
+      const url = "https://example.com/mcp"
+      const clientInfo = { clientId: "dynamic-client", clientSecret: "dynamic-secret" }
+
+      yield* auth.updateClientInfo(name, clientInfo, url)
+      yield* auth.updateTokens(name, { accessToken: "stale-token" }, url)
+      yield* auth.updateCodeVerifier(name, "stale-verifier")
+      yield* auth.updateOAuthState(name, "stale-state")
+
+      const first = yield* mcp.startAuth(name)
+      const afterFirst = yield* auth.get(name)
+
+      expect(first.authorizationUrl).toContain("https://auth.example.com/authorize")
+      expect(first.oauthState).not.toBe("stale-state")
+      expect(afterFirst?.tokens).toBeUndefined()
+      expect(afterFirst?.clientInfo).toEqual(clientInfo)
+      expect(afterFirst?.serverUrl).toBe(url)
+      expect(afterFirst?.codeVerifier).toBe("test-verifier")
+      expect(afterFirst?.oauthState).toBe(first.oauthState)
+
+      const cancelled = McpOAuthCallback.waitForCallback(first.oauthState, name).catch((error) => error)
+      const closedBeforeRestart = transportCloseCount
+      yield* mcp.startAuth(name)
+      expect(transportCloseCount).toBe(closedBeforeRestart + 1)
+      const cancellation = yield* Effect.promise(() => cancelled)
+      expect(cancellation).toBeInstanceOf(Error)
+      if (!(cancellation instanceof Error)) throw new Error("Expected abandoned authorization to be cancelled")
+      expect(cancellation.message).toBe("Authorization cancelled")
+    }),
+  { config: config("test-reauth") },
 )
 
 mcpTest.instance(
