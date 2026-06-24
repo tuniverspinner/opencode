@@ -58,7 +58,7 @@ describe("OpencodePlugin", () => {
           type: "oauth",
           label: "OpenCode Console account",
         },
-        { type: "key", label: "Service account" },
+        { type: "key", label: "API key (service account)" },
       ])
     }),
   )

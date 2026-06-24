@@ -147,7 +147,7 @@ export const OpencodePlugin = define<HttpClient.HttpClient | EventV2.Service | S
         integration.name = "OpenCode"
       })
       draft.method.update(oauth(http))
-      draft.method.update({ integrationID: "opencode", method: { type: "key", label: "Service account" } })
+      draft.method.update({ integrationID: "opencode", method: { type: "key", label: "API key (service account)" } })
     })
 
     yield* load()
