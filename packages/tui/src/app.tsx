@@ -32,6 +32,7 @@ import { EditorContextProvider } from "./context/editor"
 import { useEvent } from "./context/event"
 import { SDKProvider, useSDK } from "./context/sdk"
 import { StartupLoading } from "./component/startup-loading"
+import { Reconnecting } from "./component/reconnecting"
 import { SyncProvider, useSync } from "./context/sync"
 import { DataProvider, useData } from "./context/data"
 import { LocationProvider } from "./context/location"
@@ -1090,6 +1091,9 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       </Show>
       <Show when={!startup.skipInitialLoading}>
         <StartupLoading ready={ready} />
+      </Show>
+      <Show when={data.connection.status() === "reconnecting"}>
+        <Reconnecting attempt={data.connection.attempt()} error={data.connection.error()} />
       </Show>
     </box>
   )

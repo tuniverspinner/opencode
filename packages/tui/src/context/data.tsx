@@ -23,6 +23,8 @@ import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"
 import { createSignal, onCleanup, onMount } from "solid-js"
 
+export type DataConnectionStatus = "connecting" | "connected" | "reconnecting"
+
 type LocationData = {
   agent?: AgentV2Info[]
   command?: CommandV2Info[]
@@ -34,6 +36,11 @@ type LocationData = {
 }
 
 type Data = {
+  connection: {
+    status: DataConnectionStatus
+    attempt: number
+    error?: string
+  }
   session: {
     info: Record<string, SessionV2Info>
     message: Record<string, SessionMessage[]>
@@ -58,6 +65,10 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
   name: "Data",
   init: () => {
     const [store, setStore] = createStore<Data>({
+      connection: {
+        status: "connecting",
+        attempt: 0,
+      },
       session: {
         info: {},
         message: {},
@@ -404,16 +415,18 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       }
     }
 
-    onMount(() => {
-      const controller = new AbortController()
-      onCleanup(() => controller.abort())
-      void (async () => {
-        const events = await sdk.client.v2.event.subscribe({ signal: controller.signal })
-        for await (const event of events.stream) handleEvent(event)
-      })().catch(() => {})
-    })
-
     const result = {
+      connection: {
+        status() {
+          return store.connection.status
+        },
+        attempt() {
+          return store.connection.attempt
+        },
+        error() {
+          return store.connection.error
+        },
+      },
       session: {
         list() {
           return Object.values(store.session.info).toSorted((a, b) => b.time.updated - a.time.updated)
@@ -499,7 +512,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.agent.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "agent", result.data.data)
+            setStore("location", key, { ...store.location[key], agent: result.data.data })
           },
         },
         command: {
@@ -509,7 +522,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.command.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "command", result.data.data)
+            setStore("location", key, { ...store.location[key], command: result.data.data })
           },
         },
         integration: {
@@ -522,7 +535,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
               { throwOnError: true },
             )
             const key = locationKey(result.data.location)
-            setStore("location", key, "integration", result.data.data)
+            setStore("location", key, { ...store.location[key], integration: result.data.data })
           },
         },
         model: {
@@ -532,7 +545,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.model.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "model", result.data.data)
+            setStore("location", key, { ...store.location[key], model: result.data.data })
           },
         },
         provider: {
@@ -542,7 +555,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.provider.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "provider", result.data.data)
+            setStore("location", key, { ...store.location[key], provider: result.data.data })
           },
         },
         reference: {
@@ -552,7 +565,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.reference.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "reference", result.data.data)
+            setStore("location", key, { ...store.location[key], reference: result.data.data })
           },
         },
         skill: {
@@ -562,14 +575,14 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.skill.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "skill", result.data.data)
+            setStore("location", key, { ...store.location[key], skill: result.data.data })
           },
         },
       },
     }
 
-    onMount(() => {
-      void Promise.allSettled([
+    async function bootstrap() {
+      const settled = await Promise.allSettled([
         sdk.client.v2.session
           .list({ limit: 50, order: "desc" }, { throwOnError: true })
           .then((response) =>
@@ -589,12 +602,57 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
         result.location.reference.refresh(),
         result.location.command.refresh(),
         result.location.skill.refresh(),
-      ]).then((settled) => {
-        for (const failure of settled.filter((item) => item.status === "rejected"))
-          console.error("Failed to refresh default location data", failure.reason)
-      })
+      ])
+      for (const failure of settled.filter((item) => item.status === "rejected"))
+        console.error("Failed to refresh default location data", failure.reason)
+    }
+
+    onMount(() => {
+      const controller = new AbortController()
+      onCleanup(() => controller.abort())
+      void (async () => {
+        while (!controller.signal.aborted) {
+          const error = await (async () => {
+            const events = await sdk.client.v2.event.subscribe({
+              signal: controller.signal,
+              sseMaxRetryAttempts: 0,
+              throwOnError: true,
+            })
+            const stream = events.stream[Symbol.asyncIterator]()
+            const first = await stream.next()
+            if (first.done) return new Error("Event stream disconnected")
+            setStore("connection", { status: "connected", attempt: 0, error: undefined })
+            handleEvent(first.value)
+            await bootstrap()
+            while (!controller.signal.aborted) {
+              const event = await stream.next()
+              if (event.done) return new Error("Event stream disconnected")
+              handleEvent(event.value)
+            }
+          })().catch((error) => error)
+          if (controller.signal.aborted) return
+          setStore("connection", {
+            status: "reconnecting",
+            attempt: store.connection.status === "connected" ? 1 : store.connection.attempt + 1,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          await wait(250, controller.signal)
+        }
+      })()
     })
 
     return result
   },
 })
+
+function wait(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(done, delay)
+    signal.addEventListener("abort", done, { once: true })
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener("abort", done)
+      resolve()
+    }
+  })
+}

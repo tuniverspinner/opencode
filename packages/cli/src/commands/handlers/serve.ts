@@ -48,11 +48,15 @@ function listen(hostname: string, port: Option.Option<number>, password: string)
 }
 
 function bind(hostname: string, port: number, password: string) {
+  const server = createServer()
   return Layer.build(
     HttpRouter.serve(createRoutes(password), { disableListenLog: true, disableLogger: true }).pipe(
-      Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port, host: hostname })),
+      Layer.provideMerge(NodeHttpServer.layer(() => server, { port, host: hostname })),
       Layer.provide(Credential.defaultLayer),
       Layer.provide(PermissionSaved.defaultLayer),
     ),
-  ).pipe(Effect.map((context) => Context.get(context, HttpServer.HttpServer).address))
+  ).pipe(
+    Effect.tap(() => Effect.addFinalizer(() => Effect.sync(() => server.closeAllConnections()))),
+    Effect.map((context) => Context.get(context, HttpServer.HttpServer).address),
+  )
 }

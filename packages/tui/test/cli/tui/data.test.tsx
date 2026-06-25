@@ -92,6 +92,74 @@ test("refreshes resources into reactive getters", async () => {
   }
 })
 
+test("reconnects the event stream and bootstraps fresh data", async () => {
+  const events = createEventSource()
+  const requests = { event: 0, model: 0 }
+  const calls = createFetch((url) => {
+    if (url.pathname === "/api/event") {
+      requests.event++
+      return events.response()
+    }
+    if (url.pathname !== "/api/model") return
+    requests.model++
+    return json({
+      location: { directory, project: { id: "proj_test", directory } },
+      data: [
+        {
+          id: `model-${requests.model}`,
+          providerID: "provider",
+          name: `Model ${requests.model}`,
+          api: { type: "native" },
+          capabilities: { tools: false, input: [], output: [] },
+          cost: [],
+          limit: { context: 1, output: 1 },
+          request: { headers: {}, body: {} },
+          status: "active",
+          time: { released: 0 },
+          variants: [],
+        },
+      ],
+    })
+  }, events)
+  let data!: ReturnType<typeof useData>
+
+  function Probe() {
+    data = useData()
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <TestTuiContexts>
+      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
+        <ProjectProvider>
+          <DataProvider>
+            <Probe />
+          </DataProvider>
+        </ProjectProvider>
+      </SDKProvider>
+    </TestTuiContexts>
+  ))
+
+  try {
+    await wait(() => data.location.model.list()?.[0]?.id === "model-1")
+    expect(data.connection.status()).toBe("connected")
+    expect(data.connection.attempt()).toBe(0)
+
+    events.disconnect()
+    await wait(() => data.connection.status() === "reconnecting")
+    expect(data.connection.attempt()).toBe(1)
+    expect(data.connection.error()).toBe("Event stream disconnected")
+
+    await wait(() => data.location.model.list()?.[0]?.id === "model-2", 4000)
+    expect(requests.event).toBe(2)
+    expect(data.connection.status()).toBe("connected")
+    expect(data.connection.attempt()).toBe(0)
+    expect(data.connection.error()).toBeUndefined()
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("refreshes integrations after integration updates", async () => {
   const events = createEventSource()
   const requests = { integration: 0, model: 0, provider: 0 }
