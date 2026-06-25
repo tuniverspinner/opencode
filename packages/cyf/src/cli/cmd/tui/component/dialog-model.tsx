@@ -19,21 +19,37 @@ export function DialogModel(props: { providerID?: string }) {
   const providers = createDialogProviderOptions()
   const connectedIDs = createMemo(() => new Set(sync.data.provider_next.connected))
 
-  const showExtra = createMemo(() => connected() && !props.providerID)
+  const showExtra = createMemo(() => !props.providerID && (connected() || sync.data.provider.length === 0))
 
   const options = createMemo(() => {
     const needle = query().trim()
     const showSections = showExtra() && needle.length === 0
-    const favorites = connected() ? local.model.favorite() : []
+    const favorites = local.model.favorite()
     const recents = local.model.recent()
 
     function toOptions(items: typeof favorites, category: string) {
       if (!showSections) return []
       return items.flatMap((item) => {
         const provider = sync.data.provider.find((x) => x.id === item.providerID)
-        if (!provider) return []
-        const model = provider.models[item.modelID]
-        if (!model) return []
+        const model = provider?.models[item.modelID]
+        // Catalog not loaded yet — fall back to the cached display name from model.json.
+        if (!provider || !model) {
+          if (!item.name) return []
+          return [
+            {
+              key: item,
+              value: { providerID: item.providerID, modelID: item.modelID },
+              title: item.name,
+              description: item.providerID,
+              category,
+              disabled: false,
+              footer: undefined,
+              onSelect: () => {
+                onSelect(item.providerID, item.modelID)
+              },
+            },
+          ]
+        }
         return [
           {
             key: item,

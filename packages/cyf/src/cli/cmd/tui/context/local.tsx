@@ -31,8 +31,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const toast = useToast()
 
     function isModelValid(model: { providerID: string; modelID: string }) {
+      // Catalog not loaded yet — trust local entries; the worker rejects at use-time if truly invalid.
+      if (sync.data.provider.length === 0) return true
       const provider = sync.data.provider.find((x) => x.id === model.providerID)
       return !!provider?.models[model.modelID]
+    }
+
+    // Snapshot the display name from the worker-resolved catalog.
+    // Called when the user selects/favorites a model (the catalog is loaded by definition at that point).
+    function resolveModelName(model: { providerID: string; modelID: string }): string | undefined {
+      const provider = sync.data.provider.find((x) => x.id === model.providerID)
+      const info = provider?.models[model.modelID]
+      return info?.name
     }
 
     function getFirstValidModel(...modelFns: (() => { providerID: string; modelID: string } | undefined)[]) {
@@ -115,10 +125,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         recent: {
           providerID: string
           modelID: string
+          name?: string
         }[]
         favorite: {
           providerID: string
           modelID: string
+          name?: string
         }[]
         variant: Record<string, string | undefined>
       }>({
@@ -284,10 +296,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
           const uniq = uniqueBy([next, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
           if (uniq.length > 10) uniq.pop()
-          setModelStore(
-            "recent",
-            uniq.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
-          )
+          setModelStore("recent", uniq as typeof modelStore.recent)
           save()
         },
         set(model: { providerID: string; modelID: string }, options?: { recent?: boolean }) {
@@ -305,12 +314,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
               setModelStore("model", item.name, model)
             }
             if (options?.recent) {
-              const uniq = uniqueBy([model, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
+              const named = { ...model, name: resolveModelName(model) }
+              const uniq = uniqueBy([named, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
               if (uniq.length > 10) uniq.pop()
-              setModelStore(
-                "recent",
-                uniq.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
-              )
+              setModelStore("recent", uniq as typeof modelStore.recent)
               save()
             }
           })
@@ -328,13 +335,11 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             const exists = modelStore.favorite.some(
               (x) => x.providerID === model.providerID && x.modelID === model.modelID,
             )
+            const named = { ...model, name: resolveModelName(model) }
             const next = exists
               ? modelStore.favorite.filter((x) => x.providerID !== model.providerID || x.modelID !== model.modelID)
-              : [model, ...modelStore.favorite]
-            setModelStore(
-              "favorite",
-              next.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
-            )
+              : [named, ...modelStore.favorite]
+            setModelStore("favorite", next as typeof modelStore.favorite)
             save()
           })
         },
