@@ -14,6 +14,7 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { Filesystem } from "@/util/filesystem"
+import { readFileSync } from "fs"
 
 export function parseModel(model: string) {
   const [providerID, ...rest] = model.split("/")
@@ -159,17 +160,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         })
       }
 
-      Filesystem.readJson(filePath)
-        .then((x: any) => {
-          if (Array.isArray(x.recent)) setModelStore("recent", x.recent)
-          if (Array.isArray(x.favorite)) setModelStore("favorite", x.favorite)
-          if (typeof x.variant === "object" && x.variant !== null) setModelStore("variant", x.variant)
-        })
-        .catch(() => {})
-        .finally(() => {
-          setModelStore("ready", true)
-          if (state.pending) save()
-        })
+      try {
+        const x: any = JSON.parse(readFileSync(filePath, "utf-8"))
+        if (Array.isArray(x.recent)) setModelStore("recent", x.recent)
+        if (Array.isArray(x.favorite)) setModelStore("favorite", x.favorite)
+        if (typeof x.variant === "object" && x.variant !== null) setModelStore("variant", x.variant)
+      } catch {}
+      setModelStore("ready", true)
+      if (state.pending) save()
 
       const args = useArgs()
       const fallbackModel = createMemo(() => {
@@ -183,6 +181,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
         }
 
+        for (const item of modelStore.recent) {
+          if (isModelValid(item)) {
+            return item
+          }
+        }
+
         if (sync.data.config.model) {
           const { providerID, modelID } = parseModel(sync.data.config.model)
           if (isModelValid({ providerID, modelID })) {
@@ -190,12 +194,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
               providerID,
               modelID,
             }
-          }
-        }
-
-        for (const item of modelStore.recent) {
-          if (isModelValid(item)) {
-            return item
           }
         }
 
@@ -244,9 +242,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
           const provider = sync.data.provider.find((x) => x.id === value.providerID)
           const info = provider?.models[value.modelID]
+          const cached = modelStore.recent.find(
+            (x) => x.providerID === value.providerID && x.modelID === value.modelID,
+          ) ?? modelStore.favorite.find(
+            (x) => x.providerID === value.providerID && x.modelID === value.modelID,
+          )
           return {
             provider: provider?.name ?? value.providerID,
-            model: info?.name ?? value.modelID,
+            model: info?.name ?? cached?.name ?? value.modelID,
             reasoning: info?.capabilities?.reasoning ?? false,
           }
         }),
