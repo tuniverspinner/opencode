@@ -1,3 +1,4 @@
+import os from "os"
 import { Glob } from "@cyf-ai/core/util/glob"
 import { ConfigPluginV1 } from "@cyf-ai/core/v1/config/plugin"
 import { pathToFileURL } from "url"
@@ -49,6 +50,7 @@ export async function resolvePluginSpec(
   const base = path.dirname(configFilepath)
   const file = (() => {
     if (spec.startsWith("file://")) return spec
+    if (spec.startsWith("~")) return pathToFileURL(path.join(os.homedir(), spec.slice(1))).href
     if (path.isAbsolute(spec) || /^[A-Za-z]:[\\/]/.test(spec)) return pathToFileURL(spec).href
     return pathToFileURL(path.resolve(base, spec)).href
   })()
