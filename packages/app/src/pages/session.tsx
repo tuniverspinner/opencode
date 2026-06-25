@@ -1076,6 +1076,14 @@ export default function Page() {
     working: () => true,
     overflowAnchor: "none",
   })
+  const timelineScroll = () => view().scroll("timeline")
+  const hasTimelineScroll = createMemo(() => layout.ready() && !!timelineScroll())
+  let timelineScrollSession = ""
+  const timelineScrollTop = () => {
+    const y = timelineScroll()?.y
+    if (y === Number.MAX_SAFE_INTEGER) return
+    return y
+  }
   createEffect(
     on(
       () => params.id,
@@ -1116,6 +1124,15 @@ export default function Page() {
       if (!target) return
 
       updateScrollState(target)
+    })
+  }
+
+  const persistTimelineScroll = (el: HTMLDivElement) => {
+    if (!layout.ready() || timelineScrollSession !== sessionKey()) return
+    const max = el.scrollHeight - el.clientHeight
+    view().setScroll("timeline", {
+      x: max,
+      y: max <= 1 || max - el.scrollTop <= 2 ? Number.MAX_SAFE_INTEGER : el.scrollTop,
     })
   }
 
@@ -1516,6 +1533,53 @@ export default function Page() {
     },
   )
 
+  const restoreTimelineScroll = (saved: { x: number; y: number }) => {
+    const id = params.id
+    const owner = sessionOwnership.capture()
+    const key = sessionKey()
+    if (!id) return
+
+    const apply = () =>
+      owner.run(() => {
+        if (!scroller) return
+        autoScroll.pause()
+        const max = scroller.scrollHeight - scroller.clientHeight
+        const top = max < saved.y + 100 && !historyMore() && saved.x > 0 ? (saved.y / saved.x) * max : saved.y
+        const stable = Math.abs(scroller.scrollTop - top) < 1
+        scroller.scrollTop = top
+        scheduleScrollState(scroller)
+        return stable
+      })
+    apply()
+
+    const load = async () => {
+      while (owner.current()) {
+        const el = scroller
+        if (!el || el.scrollHeight - el.clientHeight >= saved.y + 100 || !historyMore()) break
+        const before = timeline.messages().length
+        await sync().session.history.loadMore(id)
+        if (!owner.current() || timeline.messages().length <= before) break
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+        apply()
+      }
+      apply()
+      let frames = 0
+      let stable = 0
+      const settle = () => {
+        if (!owner.current()) return
+        stable = apply() ? stable + 1 : 0
+        frames += 1
+        if (stable >= 10 || frames >= 180) {
+          timelineScrollSession = key
+          return
+        }
+        requestAnimationFrame(settle)
+      }
+      requestAnimationFrame(settle)
+    }
+    void load()
+  }
+
   const { clearMessageHash, scrollToMessage } = useSessionHashScroll({
     sessionKey,
     sessionID: () => params.id,
@@ -1538,6 +1602,18 @@ export default function Page() {
     scroller: () => scroller,
     anchor,
     revealMessage: (id) => revealMessage(id),
+    scrollReady: layout.ready,
+    hasSavedScroll: hasTimelineScroll,
+    restoreScroll: () => {
+      const saved = timelineScroll()
+      const el = scroller
+      if (!saved || saved.y === Number.MAX_SAFE_INTEGER || !el) return false
+      restoreTimelineScroll(saved)
+      return true
+    },
+    onApplyScroll: () => {
+      timelineScrollSession = sessionKey()
+    },
     scheduleScrollState,
     consumePendingMessage: layout.pendingMessage.consume,
   })
@@ -1734,6 +1810,7 @@ export default function Page() {
                         onResumeScroll={resumeScroll}
                         setScrollRef={setScrollRef}
                         onScheduleScrollState={scheduleScrollState}
+                        onPersistScroll={persistTimelineScroll}
                         onAutoScrollHandleScroll={autoScroll.handleScroll}
                         onMarkScrollGesture={markScrollGesture}
                         hasScrollGesture={hasScrollGesture}
@@ -1741,8 +1818,13 @@ export default function Page() {
                         onHistoryScroll={onHistoryScroll}
                         onAutoScrollInteraction={autoScroll.handleInteraction}
                         shouldAnchorBottom={() =>
-                          !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
+                          !location.hash &&
+                          !store.messageId &&
+                          !ui.pendingMessage &&
+                          !autoScroll.userScrolled() &&
+                          timelineScrollTop() === undefined
                         }
+                        initialScrollTop={timelineScrollTop}
                         centered={centered()}
                         setContentRef={(el) => {
                           content = el

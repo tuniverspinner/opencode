@@ -19,12 +19,17 @@ export const useSessionHashScroll = (input: {
   scroller: () => HTMLDivElement | undefined
   anchor: (id: string) => string
   revealMessage?: (id: string) => void
+  scrollReady: () => boolean
+  hasSavedScroll: () => boolean
+  restoreScroll: () => boolean
+  onApplyScroll: () => void
   scheduleScrollState: (el: HTMLDivElement) => void
   consumePendingMessage: (key: string) => string | undefined
 }) => {
   const visibleUserMessages = createMemo(() => input.visibleUserMessages())
   const messageById = createMemo(() => new Map(visibleUserMessages().map((m) => [m.id, m])))
   let pendingKey = ""
+  let restoredKey = ""
   let clearing = false
 
   const location = useLocation()
@@ -99,13 +104,23 @@ export const useSessionHashScroll = (input: {
   }
 
   const applyHash = (behavior: ScrollBehavior) => {
+    const key = input.sessionKey()
+    const initial = restoredKey !== key
     const hash = location.hash.slice(1)
     if (!hash) {
+      if (initial && input.restoreScroll()) {
+        restoredKey = key
+        return
+      }
       input.autoScroll.forceScrollToBottom()
       const el = input.scroller()
       if (el) input.scheduleScrollState(el)
+      if (input.scrollReady()) input.onApplyScroll()
       return
     }
+
+    restoredKey = key
+    input.onApplyScroll()
 
     const messageId = messageIdFromHash(hash)
     if (messageId) {
@@ -132,6 +147,8 @@ export const useSessionHashScroll = (input: {
 
   createEffect(() => {
     const hash = location.hash
+    input.scrollReady()
+    input.hasSavedScroll()
     if (!hash) clearing = false
     if (!input.sessionID() || !input.messagesReady()) return
     cancel()

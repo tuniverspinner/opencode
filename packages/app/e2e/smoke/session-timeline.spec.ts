@@ -115,6 +115,46 @@ test.describe("smoke: session timeline", () => {
       .toBeLessThanOrEqual(1)
   })
 
+  test("restores the persisted timeline position after reload", async ({ page }) => {
+    await mockOpenCodeServer(page, {
+      sessions: fixture.sessions,
+      provider: fixture.provider,
+      directory: fixture.directory,
+      project: fixture.project,
+      pageMessages,
+    })
+    await configureSmokePage(page, fixture.directory)
+
+    await navigateToSession(page, fixture.directory, fixture.targetID, fixture.expected.targetTitle)
+    await waitForTimelineStable(page)
+    await pointAtTimeline(page)
+    await page.mouse.wheel(0, -1_000)
+    await expect
+      .poll(() =>
+        timelineScroller(page).evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeGreaterThan(100)
+    await page.waitForTimeout(500)
+    expect(await timelineScroller(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(100)
+    expect(
+      await timelineScroller(page).evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    ).toBeGreaterThan(100)
+    await page.reload()
+    await waitForTimelineStable(page)
+    await expect.poll(() => timelineScroller(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(100)
+    await expect
+      .poll(() =>
+        timelineScroller(page).evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeGreaterThan(100)
+  })
+
   test("paints cached session tabs at the latest message", async ({ page }) => {
     await mockOpenCodeServer(page, {
       sessions: fixture.sessions,

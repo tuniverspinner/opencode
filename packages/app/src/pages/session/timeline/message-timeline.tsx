@@ -235,6 +235,7 @@ export function MessageTimeline(props: {
   onResumeScroll: () => void
   setScrollRef: (el: HTMLDivElement | undefined) => void
   onScheduleScrollState: (el: HTMLDivElement) => void
+  onPersistScroll: (el: HTMLDivElement) => void
   onAutoScrollHandleScroll: () => void
   onMarkScrollGesture: (target?: EventTarget | null) => void
   hasScrollGesture: () => boolean
@@ -242,6 +243,7 @@ export function MessageTimeline(props: {
   onHistoryScroll: () => void
   onAutoScrollInteraction: (event: MouseEvent) => void
   shouldAnchorBottom: () => boolean
+  initialScrollTop: () => number | undefined
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
   userMessages: UserMessage[]
@@ -400,7 +402,7 @@ export function MessageTimeline(props: {
       return timelineRows().length
     },
     getScrollElement: () => listRoot() ?? null,
-    initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : 0),
+    initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : (props.initialScrollTop() ?? 0)),
     initialMeasurementsCache: initialMeasurements,
     estimateSize: () => timelineFallbackItemSize,
     scrollToFn: (offset, options, instance) => {
@@ -598,6 +600,7 @@ export function MessageTimeline(props: {
   const handleListScroll = (event: Event & { currentTarget: HTMLDivElement }) => {
     if (prependLoading) updatePrependAnchor()
     props.onScheduleScrollState(event.currentTarget)
+    props.onPersistScroll(event.currentTarget)
     props.onHistoryScroll()
     if (!props.hasScrollGesture()) return
     props.onUserScroll()
