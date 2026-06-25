@@ -1,84 +1,128 @@
 name: "Setup Bun"
-description: "Setup Bun with caching and install dependencies"
+description: "Resolve the channel Bun toolchain, install it, and install dependencies"
 inputs:
-  cross-compile:
-    description: "Pre-cache canary cross-compile binaries for Windows targets"
-    required: false
-    default: "false"
-  cross-compile-version:
-    description: "Bun semver used for Windows cross-compile cache keys"
+  channel:
+    description: "Explicit toolchain channel (dev, beta, or prod)"
     required: false
     default: ""
+  revision:
+    description: "Expected exact Bun revision for cross-job consistency"
+    required: false
+    default: ""
+  cross-compile:
+    description: "Pre-cache matching Bun runtimes for all compile targets"
+    required: false
+    default: "false"
   install-flags:
     description: "Additional flags to pass to 'bun install'"
     required: false
     default: ""
+outputs:
+  channel:
+    value: ${{ steps.resolve.outputs.channel }}
+  selector:
+    value: ${{ steps.resolve.outputs.selector }}
+  version:
+    value: ${{ steps.metadata.outputs.version }}
+  revision:
+    value: ${{ steps.metadata.outputs.revision }}
+  compile-version:
+    value: ${{ steps.metadata.outputs.compile-version }}
 runs:
   using: "composite"
   steps:
-    - name: Get baseline download URL
+    - name: Resolve Bun toolchain
+      id: resolve
+      shell: bash
+      env:
+        INPUT_CHANNEL: ${{ inputs.channel }}
+        GITHUB_BASE_REF: ${{ github.base_ref }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+      run: node "$GITHUB_ACTION_PATH/resolve.mjs"
+
+    - name: Resolve Bun download URL
       id: bun-url
       shell: bash
+      env:
+        SELECTOR: ${{ steps.resolve.outputs.selector }}
+        TAG: ${{ steps.resolve.outputs.tag }}
       run: |
-        V=$(node -p "require('./package.json').packageManager.split('@')[1]")
-        if [ "$RUNNER_OS" = "Windows" ]; then
-          case "$RUNNER_ARCH" in
-            X64)   ARTIFACT=bun-windows-x64-baseline.zip ;;
-            ARM64) ARTIFACT=bun-windows-aarch64.zip ;;
-          esac
-          echo "url=https://github.com/oven-sh/bun/releases/download/canary/${ARTIFACT}" >> "$GITHUB_OUTPUT"
-        elif [ "$RUNNER_ARCH" = "X64" ]; then
-          case "$RUNNER_OS" in
-            macOS) OS=darwin ;;
-            Linux) OS=linux ;;
-          esac
-          echo "url=https://github.com/oven-sh/bun/releases/download/bun-v${V}/bun-${OS}-x64-baseline.zip" >> "$GITHUB_OUTPUT"
+        if [ "$RUNNER_ARCH" != "X64" ]; then
+          exit
         fi
+        case "$RUNNER_OS" in
+          macOS) OS=darwin ;;
+          Linux) OS=linux ;;
+          Windows) OS=windows ;;
+        esac
+        SUFFIX=-baseline
+        if [ "$SELECTOR" = "canary" ] && [ "$OS" = "darwin" ]; then
+          SUFFIX=
+        fi
+        echo "url=https://github.com/oven-sh/bun/releases/download/${TAG}/bun-${OS}-x64${SUFFIX}.zip" >> "$GITHUB_OUTPUT"
 
     - name: Setup Bun
+      id: bun
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
-        bun-version-file: ${{ !steps.bun-url.outputs.url && 'package.json' || '' }}
+        bun-version: ${{ steps.resolve.outputs.selector }}
         bun-download-url: ${{ steps.bun-url.outputs.url }}
+
+    - name: Verify Bun toolchain
+      id: metadata
+      shell: bash
+      env:
+        CHANNEL: ${{ steps.resolve.outputs.channel }}
+        SELECTOR: ${{ steps.resolve.outputs.selector }}
+        EXPECTED_REVISION: ${{ inputs.revision }}
+      run: |
+        VERSION=$(bun --version)
+        REVISION=$(bun --revision)
+        COMPILE_VERSION=$(echo "$VERSION" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
+        if [ "$SELECTOR" = "canary" ]; then
+          echo "$REVISION" | grep -q canary
+        elif [[ "$REVISION" != "$SELECTOR"* ]]; then
+          echo "Expected Bun $SELECTOR, got $REVISION" >&2
+          exit 1
+        fi
+        if [ -n "$EXPECTED_REVISION" ] && [ "$REVISION" != "$EXPECTED_REVISION" ]; then
+          echo "Expected Bun revision $EXPECTED_REVISION, got $REVISION" >&2
+          exit 1
+        fi
+        echo "OPENCODE_BUN_CHANNEL=$CHANNEL" >> "$GITHUB_ENV"
+        echo "OPENCODE_BUN_VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "OPENCODE_BUN_REVISION=$REVISION" >> "$GITHUB_ENV"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+        echo "compile-version=$COMPILE_VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Get cache directory
       id: cache
       shell: bash
-      run: echo "dir=$(bun pm cache)" >> "$GITHUB_OUTPUT"
+      run: |
+        DIR=$(bun pm cache)
+        echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+        echo "BUN_INSTALL_CACHE_DIR=$DIR" >> "$GITHUB_ENV"
 
     - name: Restore Bun dependencies
       id: bun-cache
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ steps.cache.outputs.dir }}
-        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ steps.metadata.outputs.revision }}-${{ hashFiles('**/bun.lock') }}
         restore-keys: |
-          ${{ runner.os }}-bun-
+          ${{ runner.os }}-${{ runner.arch }}-bun-${{ steps.metadata.outputs.revision }}-
 
-    - name: Pre-cache Windows canary cross-compile binaries
+    - name: Pre-cache Bun cross-compile runtimes
       if: inputs.cross-compile == 'true'
       shell: bash
-      run: |
-        if [ -z "${{ inputs.cross-compile-version }}" ]; then
-          echo "cross-compile-version is required when cross-compile is true" >&2
-          exit 1
-        fi
-        SEMVER="${{ inputs.cross-compile-version }}"
-        CACHE_DIR="${{ steps.cache.outputs.dir }}"
-        mkdir -p "$CACHE_DIR"
-        TMP_DIR=$(mktemp -d)
-        for TARGET in windows-aarch64 windows-x64 windows-x64-baseline; do
-          DEST="$CACHE_DIR/bun-${TARGET}-v${SEMVER}"
-          URL="https://github.com/oven-sh/bun/releases/download/canary/bun-${TARGET}.zip"
-          echo "Downloading $TARGET from $URL"
-          curl -sfL -o "$TMP_DIR/bun.zip" "$URL"
-          unzip -qo "$TMP_DIR/bun.zip" -d "$TMP_DIR"
-          mv "$TMP_DIR/bun-${TARGET}/bun.exe" "$DEST"
-          chmod +x "$DEST"
-          rm -rf "$TMP_DIR/bun-${TARGET}" "$TMP_DIR/bun.zip"
-          echo "Cached: $DEST"
-        done
-        rm -rf "$TMP_DIR"
+      run: >-
+        bash "$GITHUB_ACTION_PATH/cache-targets.sh"
+        "${{ steps.resolve.outputs.selector }}"
+        "${{ steps.resolve.outputs.tag }}"
+        "${{ steps.metadata.outputs.compile-version }}"
+        "${{ steps.metadata.outputs.revision }}"
+        "${{ steps.cache.outputs.dir }}"
 
     - name: Install setuptools for distutils compatibility
       run: python3 -m pip install setuptools || pip install setuptools || true
@@ -90,9 +134,9 @@ runs:
         # e.g. ./patches/ for standard-openapi
         # https://github.com/oven-sh/bun/issues/28147
         if [ "$RUNNER_OS" = "Windows" ]; then
-          bun install --linker hoisted ${{ inputs.install-flags }}
+          bun install --frozen-lockfile --linker hoisted ${{ inputs.install-flags }}
         else
-          bun install ${{ inputs.install-flags }}
+          bun install --frozen-lockfile ${{ inputs.install-flags }}
         fi
       shell: bash
 
@@ -101,4 +145,4 @@ runs:
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ steps.cache.outputs.dir }}
-        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ steps.metadata.outputs.revision }}-${{ hashFiles('**/bun.lock') }}

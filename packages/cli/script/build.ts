@@ -49,7 +49,7 @@ const targets = singleFlag
     })
   : allTargets
 
-if (!skipInstall) await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
+if (!skipInstall) await $`bun install --no-save --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
 
 const localParserWorker = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
 const rootParserWorker = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")
@@ -81,13 +81,7 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: [
-        target.replace(binary, "bun"),
-        item.os === "win32" && process.env.BUN_WINDOWS_VERSION && item.avx2 !== false ? "modern" : undefined,
-        item.os === "win32" && process.env.BUN_WINDOWS_VERSION ? `v${process.env.BUN_WINDOWS_VERSION}` : undefined,
-      ]
-        .filter(Boolean)
-        .join("-") as Bun.Build.CompileTarget,
+      target: target.replace(binary, "bun") as Bun.Build.CompileTarget,
       outfile: `./dist/${name}/bin/${binary}`,
       execArgv: [`--user-agent=${binary}/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
