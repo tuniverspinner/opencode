@@ -23,7 +23,7 @@ import { SplitBorder } from "@tui/component/border"
 import { Spinner } from "@tui/component/spinner"
 import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "@tui/context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
-import { Prompt, type PromptRef } from "@tui/component/prompt"
+import { Prompt, type PromptRef } from "@tui/component/input-block"
 import type {
   AssistantMessage,
   Part,
@@ -57,7 +57,7 @@ import { useDialog } from "../../ui/dialog"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { TodoItem } from "../../component/todo-item"
 import { DialogMessage } from "./dialog-message"
-import type { PromptInfo } from "../../component/prompt/history"
+import type { PromptInfo } from "../../component/input-block/history"
 import { DialogConfirm } from "@tui/ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"

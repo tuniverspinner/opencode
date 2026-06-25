@@ -1,4 +1,4 @@
-import { Prompt, type PromptRef } from "@tui/component/prompt"
+import { Prompt, type PromptRef } from "@tui/component/input-block"
 import { createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { Logo } from "../component/logo"
 import { useSync } from "../context/sync"

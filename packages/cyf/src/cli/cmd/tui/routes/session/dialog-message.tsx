@@ -4,8 +4,8 @@ import { DialogSelect } from "@tui/ui/dialog-select"
 import { useSDK } from "@tui/context/sdk"
 import { useRoute } from "@tui/context/route"
 import * as Clipboard from "@tui/util/clipboard"
-import type { PromptInfo } from "@tui/component/prompt/history"
-import { strip } from "@tui/component/prompt/part"
+import type { PromptInfo } from "@tui/component/input-block/history"
+import { strip } from "@tui/component/input-block/part"
 
 export function DialogMessage(props: {
   messageID: string

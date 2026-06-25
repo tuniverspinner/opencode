@@ -5,7 +5,7 @@ import type { TextPart } from "@cyf-ai/sdk/v2"
 import { Locale } from "@/util/locale"
 import { DialogMessage } from "./dialog-message"
 import { useDialog } from "../../ui/dialog"
-import type { PromptInfo } from "../../component/prompt/history"
+import type { PromptInfo } from "../../component/input-block/history"
 
 export function DialogTimeline(props: {
   sessionID: string

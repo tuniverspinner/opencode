@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { computePromptTraits } from "../../../../src/cli/cmd/tui/component/prompt/traits"
+import { computePromptTraits } from "../../../../src/cli/cmd/tui/component/input-block/traits"
 
 describe("computePromptTraits", () => {
   test("normal mode without autocomplete only captures tab", () => {

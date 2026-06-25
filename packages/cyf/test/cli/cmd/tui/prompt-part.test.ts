@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { PromptInfo } from "../../../../src/cli/cmd/tui/component/prompt/history"
-import { assign, expandTrackedPastedText, strip } from "../../../../src/cli/cmd/tui/component/prompt/part"
+import type { PromptInfo } from "../../../../src/cli/cmd/tui/component/input-block/history"
+import { assign, expandTrackedPastedText, strip } from "../../../../src/cli/cmd/tui/component/input-block/part"
 
 describe("prompt part", () => {
   test("strip removes persisted ids from reused file parts", () => {

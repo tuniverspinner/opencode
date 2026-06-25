@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { isDuplicateEntry, type PromptInfo } from "../../../../src/cli/cmd/tui/component/prompt/history"
+import { isDuplicateEntry, type PromptInfo } from "../../../../src/cli/cmd/tui/component/input-block/history"
 
 const entry = (input: string, parts: PromptInfo["parts"] = []): PromptInfo => ({ input, parts })
 

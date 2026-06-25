@@ -253,7 +253,7 @@ describe("session.retry.retryable", () => {
     expect(retryable).toEqual({ message: "Response decompression failed" })
   })
 
-  test("maps free limits to Go upsell action", () => {
+  test("maps free limits to provider billing hint", () => {
     const error = Schema.decodeUnknownSync(SessionV1.APIError.Schema)(
       new SessionV1.APIError({
         message: "Free usage exceeded",
@@ -267,19 +267,18 @@ describe("session.retry.retryable", () => {
     )
 
     expect(SessionRetry.retryable(error, "opencode")).toEqual({
-      message: SessionRetry.GO_UPSELL_MESSAGE,
+      message: SessionRetry.FREE_USAGE_MESSAGE,
       action: {
         reason: "free_tier_limit",
         provider: "opencode",
         title: "Free limit reached",
-        message: "Subscribe to OpenCode Go for reliable access to the best open-source models, starting at $5/month.",
-        label: "subscribe",
-        link: SessionRetry.GO_UPSELL_URL,
+        message: SessionRetry.PROVIDER_BILLING_HINT,
+        label: "ok",
       },
     })
   })
 
-  test("maps Go subscription limits to workspace PAYG upsell", () => {
+  test("maps Go subscription limits to usage limit notice", () => {
     const error = Schema.decodeUnknownSync(SessionV1.APIError.Schema)(
       new SessionV1.APIError({
         message: "Subscription quota exceeded. You can continue using free models.",
@@ -304,15 +303,14 @@ describe("session.retry.retryable", () => {
 
     expect(SessionRetry.retryable(error, "opencode-go")).toEqual({
       message:
-        "5 hour usage limit reached. It will reset in 5 hours 23 minutes. To continue using this model now, enable usage from your available balance - https://opencode.ai/workspace/wrk_01K6XGM22R6FM8JVABE9XDQXGH/go",
+        "5 hour usage limit reached. It will reset in 5 hours 23 minutes. To continue using this model now, enable usage from your available balance",
       action: {
         reason: "account_rate_limit",
         provider: "opencode-go",
-        title: "Go limit reached",
+        title: "Usage limit reached",
         message:
           "5 hour usage limit reached. It will reset in 5 hours 23 minutes. To continue using this model now, enable usage from your available balance",
-        label: "open settings",
-        link: "https://opencode.ai/workspace/wrk_01K6XGM22R6FM8JVABE9XDQXGH/go",
+        label: "ok",
       },
     })
   })

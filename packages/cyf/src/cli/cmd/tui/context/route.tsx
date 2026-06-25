@@ -1,6 +1,6 @@
 import { createStore, reconcile } from "solid-js/store"
 import { createSimpleContext } from "./helper"
-import type { PromptInfo } from "../component/prompt/history"
+import type { PromptInfo } from "../component/input-block/history"
 
 export type HomeRoute = {
   type: "home"

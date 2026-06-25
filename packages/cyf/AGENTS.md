@@ -1,4 +1,4 @@
-# opencode database guide
+# CYF Package Guide
 
 ## Database
 
@@ -7,12 +7,18 @@
 
 ## Development server
 
-- Running `bun dev` from `packages/opencode` starts the live interactive TUI. Do not run it as a blocking foreground command when you need to inspect the result.
-- Start it in `tmux` instead: `tmux new-session -d -s opencode-dev 'bun dev'`.
-- Capture the current TUI output with: `tmux capture-pane -pt opencode-dev`.
-- Stop the session explicitly when done: `tmux kill-session -t opencode-dev`.
+- Running `bun dev` from `packages/cyf` starts the live interactive TUI. Do not run it as a blocking foreground command when you need to inspect the result.
+- Start it in `tmux` instead: `tmux new-session -d -s cyf-dev 'bun dev'`.
+- Capture the current TUI output with: `tmux capture-pane -pt cyf-dev`.
+- Stop the session explicitly when done: `tmux kill-session -t cyf-dev`.
 
-# Module shape
+For boot tracing:
+
+```sh
+CYF_BOOT_TRACE=1 CYF_SHOW_TTFD=1 CYF_BOOT_TRACE_FILE=/tmp/cyf-trace.txt cyf
+```
+
+## Module shape
 
 Do not use `export namespace Foo { ... }` for module organization. It is not
 standard ESM, it prevents tree-shaking, and it breaks Node's native TypeScript
@@ -22,7 +28,7 @@ of the file:
 ```ts
 // src/foo/foo.ts
 export interface Interface { ... }
-export class Service extends Context.Service<Service, Interface>()("@opencode/Foo") {}
+export class Service extends Context.Service<Service, Interface>()("@cyf/Foo") {}
 export const layer = Layer.effect(Service, ...)
 export const defaultLayer = layer.pipe(...)
 
@@ -40,7 +46,7 @@ Foo.defaultLayer
 ```
 
 Namespace-private helpers stay as non-exported top-level declarations in the
-same file — they remain inaccessible to consumers (they are not projected by
+same file — they remain inaccessible to consumers (not projected by
 `export * as`) but are usable by the file's own code.
 
 ## When the file is an `index.ts`
@@ -69,13 +75,13 @@ import { SessionStatus } from "@/session/status"
 Barrels in multi-sibling directories force every import through the barrel to
 evaluate every sibling, which defeats tree-shaking and slows module load.
 
-# opencode Effect rules
+## Effect rules
 
 Use these rules when writing or migrating Effect code.
 
 See `specs/effect/migration.md` for the compact pattern reference and examples.
 
-## Core
+### Core
 
 - Use `Effect.gen(function* () { ... })` for composition.
 - Use `Effect.fn("Domain.method")` for named/traced effects and `Effect.fnUntraced` for internal helpers.
@@ -84,11 +90,11 @@ See `specs/effect/migration.md` for the compact pattern reference and examples.
 - Use `Effect.void` instead of `Effect.succeed(undefined)` or `Effect.succeed(void 0)`.
 - Prefer `DateTime.nowAsDate` over `new Date(yield* Clock.currentTimeMillis)` when you need a `Date`.
 
-## Module conventions
+### Module conventions
 
-- In `src/config`, follow the existing self-export pattern at the top of the file (for example `export * as ConfigAgent from "./agent"`) when adding a new config module.
+- In `src/config`, follow the existing self-export pattern at the top of the file when adding a new config module.
 
-## Schemas and errors
+### Schemas and errors
 
 - Use `Schema.Class` for multi-field data.
 - Use branded schemas (`Schema.brand`) for single-value types.
@@ -96,7 +102,7 @@ See `specs/effect/migration.md` for the compact pattern reference and examples.
 - Use `Schema.Defect` instead of `unknown` for defect-like causes.
 - In `Effect.gen` / `Effect.fn`, prefer `yield* new MyError(...)` over `yield* Effect.fail(new MyError(...))` for direct early-failure branches.
 
-## Runtime vs InstanceState
+### Runtime vs InstanceState
 
 - Use `makeRuntime` (from `src/effect/run-service.ts`) for all services. It returns `{ runPromise, runFork, runCallback }` backed by a shared `memoMap` that deduplicates layers.
 - Use `InstanceState` (from `src/effect/instance-state.ts`) for per-directory or per-project state that needs per-instance cleanup. It uses `ScopedCache` keyed by directory — each open project gets its own state, automatically cleaned up on disposal.
@@ -107,11 +113,11 @@ See `specs/effect/migration.md` for the compact pattern reference and examples.
 - To make a service's `init()` non-blocking, fork `InstanceState.get(state)` at the `init()` call site (e.g. `Effect.forkIn(scope)`), not by forking work inside the `InstanceState.make` closure. Forking inside the closure leaves state incomplete for other methods that read it.
 - `src/project/bootstrap.ts` already wraps every service `init()` in `Effect.forkDetach`, so `init()` is fire-and-forget in production. Keep `init()` methods synchronous internally; the caller controls concurrency.
 
-## Effect v4 beta API
+### Effect v4 beta API
 
 - `Effect.fork` and `Effect.forkDaemon` do not exist. Use `Effect.forkIn(scope)` to fork a fiber into a specific scope.
 
-## Preferred Effect services
+### Preferred Effect services
 
 - In effectified services, prefer yielding existing Effect services over dropping down to ad hoc platform APIs.
 - Prefer `FileSystem.FileSystem` instead of raw `fs/promises` for effectful file I/O.
@@ -120,11 +126,11 @@ See `specs/effect/migration.md` for the compact pattern reference and examples.
 - Prefer `Path.Path`, `Config`, `Clock`, and `DateTime` when those concerns are already inside Effect code.
 - For background loops or scheduled tasks, use `Effect.repeat` or `Effect.schedule` with `Effect.forkScoped` in the layer definition.
 
-## Effect.cached for deduplication
+### Effect.cached for deduplication
 
 Use `Effect.cached` when multiple concurrent callers should share a single in-flight computation rather than storing `Fiber | undefined` or `Promise | undefined` manually. See `specs/effect/migration.md` for the full pattern.
 
-## Callback boundaries
+### Callback boundaries
 
 Use `EffectBridge` for native or external callbacks (`@parcel/watcher`, `node-pty`, native `fs.watch`, plugin callbacks, etc.) that need to re-enter Effect services with instance/workspace context.
 

@@ -1,27 +1,73 @@
-- To regenerate the JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
-- The default branch in this repo is `dev`.
-- Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
+# CYF — Command Your Fleet
 
-## Commits and PR Titles
+Fork of `anomalyco/opencode` at tag **v1.16.2**. Everything renamed: `@opencode-ai/` → `@cyf-ai/`, `OPENCODE_*` → `CYF_*`, CLI binary `opencode` → `cyf`.
 
-Use conventional commit-style messages and PR titles: `type(scope): summary`.
+- Default branch: `dev`. Local `main` may not exist; use `dev` or `origin/dev` for diffs.
+- To regenerate the JavaScript SDK: `./packages/sdk/js/script/build.ts`.
 
-Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes are optional; use the affected package or area when helpful, e.g. `core`, `opencode`, `tui`, `app`, `desktop`, `sdk`, or `plugin`.
+## Commits
 
-Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
+Use conventional commit-style messages: `type(scope): summary`.
+
+Valid types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. Scopes optional — use the affected package or area (`cyf`, `tui`, `core`, `sdk`, `plugin`).
+
+## Build & Version
+
+Always use the bump-v script — never invoke `build.ts` directly with manual `CYF_VERSION`:
+
+```sh
+bun run script/bump-v.ts 0.0.16--descriptor
+# or without git tag:
+bun run script/bump-v.ts 0.0.16--descriptor --no-tag
+```
+
+The script validates the version, tags (optional), builds, and verifies. Defaults to `--single --skip-embed-web-ui` for local dev. Pass build flags to override.
+
+Version format: `MAJOR.MINOR.PATCH--descriptor`. Descriptors are short, timeless labels. Never use dates in slugs. Never produce `0.0.0-` fingerprint versions — they are build garbage, not releases.
+
+## TUI Dual-Path Architecture
+
+CYF has two separate TUI code paths. Do not conflate them:
+
+| | Path A: `cyf` (no args) | Path B: `cyf run --interactive` |
+|---|---|---|
+| Entry | `thread.ts` → `prepare-tui-session.ts` → `app.tsx` | `run.ts` → `runtime.ts` → `runtime.lifecycle.ts` |
+| TTFD | `<TimeToFirstDraw />` from `@opentui/solid` | `performance.now()` at `runtime.ts:439` |
+| Used by | Daily driver (hot path) | Not used in normal flow |
+
+**All TTFD work targets Path A.** Path B has its own `renderer.idle()` call and TTFD measurement that are irrelevant to the daily driver.
+
+## Provider Tree & Rendering Gates
+
+The provider tree in `app.tsx:mountTui()` is 13 levels deep. Providers created via `createSimpleContext` (`context/helper.tsx`) used to gate children behind `<Show when={init.ready}>`. **The gate was removed** — providers always render children immediately. `ready` fields remain as queryable signals for business logic (plugins, auto-submit gating), not rendering gates.
+
+For the full provider audit (which providers block, which are async, which are sync), see `bluume://cyf-tui-provider-architecture-audit`.
+
+## Boot Trace / Trailmarks
+
+Env-gated trace points throughout the boot path. Zero behavior change when disabled.
+
+```sh
+CYF_BOOT_TRACE=1 CYF_SHOW_TTFD=1 CYF_BOOT_TRACE_FILE=/tmp/cyf-trace.txt cyf
+```
+
+Produces 26 trailmarks from `index.ts module body start` through `TUI: TTFD (real terminal paint)`. Includes per-provider gates (`ProviderGate` components wrap KVProvider, SyncProvider, ThemeProvider).
+
+## Key Bridge
+
+Keys are loaded via `~/.local/bin/load-keys` (24h cache, `--force` to refresh). See `bluume://key-bridge-architecture`.
 
 ## Style Guide
 
 ### General Principles
 
 - Keep things in one function unless composable or reusable
-- Do not extract single-use helpers preemptively. Inline the logic at the call site unless the helper is reused, hides a genuinely complex boundary, or has a clear independent name that improves the caller.
+- Do not extract single-use helpers preemptively. Inline at the call site unless the helper is reused, hides a genuinely complex boundary, or has a clear independent name.
 - Avoid `try`/`catch` where possible
 - Avoid using the `any` type
 - Use Bun APIs when possible, like `Bun.file()`
-- Rely on type inference when possible; avoid explicit type annotations or interfaces unless necessary for exports or clarity
+- Rely on type inference; avoid explicit type annotations unless necessary for exports or clarity
 - Prefer functional array methods (flatMap, filter, map) over for loops; use type guards on filter to maintain type inference downstream
-- In `src/config`, follow the existing self-export pattern at the top of the file (for example `export * as ConfigAgent from "./agent"`) when adding a new config module.
 
 Reduce total variable count by inlining when a value is only used once.
 
@@ -38,115 +84,39 @@ const journal = await Bun.file(journalPath).json()
 
 Avoid unnecessary destructuring. Use dot notation to preserve context.
 
-```ts
-// Good
-obj.a
-obj.b
-
-// Bad
-const { a, b } = obj
-```
-
 ### Imports
 
-- Never alias imports. Do not use `import { foo as bar } from "..."` or renamed imports like `resolve as pathResolve`.
-- Never use star imports. Do not use `import * as Foo from "..."` or `import type * as Foo from "..."`.
-- If a namespace-style value is needed, import the module's own exported namespace by name, for example `import { Project } from "@opencode-ai/core/project"`, then reference `Project.ID`.
-- Prefer dynamic imports for heavy modules that are only needed in selected code paths, especially in startup-sensitive entrypoints. Destructure dynamic import bindings near the top of the narrowest scope that needs them so they read like normal imports. Avoid inline chains such as `await import("./module").then((mod) => mod.value())` or `(await import("./module")).value()`. Keep branch-specific imports inside the branch that needs them to preserve lazy loading.
+- Never alias imports. No `import { foo as bar }`.
+- Never use star imports. No `import * as Foo`.
+- If a namespace-style value is needed, import the module's own exported namespace: `import { Project } from "@cyf-ai/core/project"`, then `Project.ID`.
+- Prefer dynamic imports for heavy modules only needed in selected code paths, especially in startup-sensitive entrypoints. Destructure dynamic import bindings near the top of the narrowest scope. Avoid inline chains like `await import("./module").then((mod) => mod.value())`.
 
 ### Variables
 
 Prefer `const` over `let`. Use ternaries or early returns instead of reassignment.
 
-```ts
-// Good
-const foo = condition ? 1 : 2
-
-// Bad
-let foo
-if (condition) foo = 1
-else foo = 2
-```
-
 ### Control Flow
 
 Avoid `else` statements. Prefer early returns.
 
-```ts
-// Good
-function foo() {
-  if (condition) return 1
-  return 2
-}
-
-// Bad
-function foo() {
-  if (condition) return 1
-  else return 2
-}
-```
-
 ### Complex Logic
 
-When a function has several validation branches or supporting details, make the main function read as the happy path and move supporting details into small helpers below it.
+Make the main function read as the happy path. Move supporting details into small helpers below it. Don't over-abstract simple expressions — extract only when it names a real concept.
 
-```ts
-// Good
-export function loadThing(input: unknown) {
-  const config = requireConfig(input)
-  const metadata = readMetadata(input)
-  return createThing({ config, metadata })
-}
-
-function requireConfig(input: unknown) {
-  ...
-}
-```
-
-- Keep helpers close to the code they support, below the main export when that improves readability.
-- Do not over-abstract simple expressions into many single-use helpers; extract only when it names a real concept like `requireConfig` or `readMetadata`.
 - Do not return `Effect` from helpers unless they actually perform effectful work. Synchronous parsing, validation, and option building should stay synchronous.
-- Prefer Effect schema helpers such as `Schema.UnknownFromJsonString` and `Schema.decodeUnknownOption` over manual `JSON.parse` wrapped in `Effect.try` when parsing untrusted JSON strings.
-- Add comments for non-obvious constraints and surprising behavior, not for obvious assignments or control flow.
+- Prefer Effect schema helpers (`Schema.UnknownFromJsonString`, `Schema.decodeUnknownOption`) over manual `JSON.parse` wrapped in `Effect.try`.
+- Comments for non-obvious constraints and surprising behavior only.
 
 ### Schema Definitions (Drizzle)
 
-Use snake_case for field names so column names don't need to be redefined as strings.
-
-```ts
-// Good
-const table = sqliteTable("session", {
-  id: text().primaryKey(),
-  project_id: text().notNull(),
-  created_at: integer().notNull(),
-})
-
-// Bad
-const table = sqliteTable("session", {
-  id: text("id").primaryKey(),
-  projectID: text("project_id").notNull(),
-  createdAt: integer("created_at").notNull(),
-})
-```
+Use snake_case for field names so column names don't need redefining as strings.
 
 ## Testing
 
 - Avoid mocks as much as possible
 - Test actual implementation, do not duplicate logic into tests
-- Tests cannot run from repo root (guard: `do-not-run-tests-from-root`); run from package dirs like `packages/opencode`.
+- Tests cannot run from repo root; run from package dirs like `packages/cyf`
 
 ## Type Checking
 
-- Always run `bun typecheck` from package directories (e.g., `packages/opencode`), never `tsc` directly.
-
-## V2 Session Core
-
-- Keep durable prompt admission separate from model execution. `SessionV2.prompt(...)` admits one durable `session_input` row before scheduling advisory `SessionExecution.wake(sessionID)` unless `resume: false` requests admit-only behavior. The serialized runner promotes admitted inputs into visible user messages at safe boundaries.
-- Reusing a Session ID adopts the existing Session. Reusing a prompt message ID reconciles an exact retry only when Session, prompt, and delivery mode match; conflicting reuse fails. Historical projected prompts lazily synthesize promoted inbox records during exact retry.
-- Keep `SessionExecution` process-global and Session-ID based. It discovers placement through the read-side `SessionStore` and `LocationServiceMap.get(session.location)`; no layer should take a Session ID.
-- Keep `SessionRunner`, model resolution, tool registry, permissions, and filesystem Location-scoped. Omitted `Location.workspaceID` means implicit-local placement; explicit workspace identity remains reserved for future placement semantics.
-- Preserve one explicit `llm.stream(request)` call per provider turn and reload projected history before durable continuation. Do not bridge through legacy `SessionPrompt.loop(...)` or delegate orchestration to an in-memory tool loop.
-- Keep local Session drains process-local until clustering is implemented. `SessionRunCoordinator` joins explicit same-Session resumes, coalesces prompt wakeups, and allows different Sessions to run concurrently. Advisory wakes drain eligible durable inbox rows only; post-crash activity recovery requires a separate explicit design before it may retry provider work.
-- Keep delivery vocabulary explicit. Prompts steer by default and coalesce into the active activity at the next safe provider-turn boundary. Explicit `queue` inputs open FIFO future activities one at a time after the active activity settles.
-- Keep EventV2 replay owner claims separate from clustered Session execution ownership.
-- Keep the System Context algebra, registry, and built-ins in `src/system-context`; keep Context Source producers with their observed domains, and keep Session History selection plus Context Epoch persistence Session-owned.
+- Always run `bun typecheck` from package directories (e.g., `packages/cyf`), never `tsc` directly.
