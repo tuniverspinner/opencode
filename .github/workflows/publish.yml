@@ -80,6 +80,7 @@ jobs:
       - uses: ./.github/actions/setup-bun
         with:
           cross-compile: "true"
+          cross-compile-version: "1.4.0"
 
       - name: Setup git committer
         id: committer
@@ -96,6 +97,7 @@ jobs:
         env:
           OPENCODE_VERSION: ${{ needs.version.outputs.version }}
           OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
+          BUN_WINDOWS_VERSION: "1.4.0"
           GH_REPO: ${{ needs.version.outputs.repo }}
           GH_TOKEN: ${{ steps.committer.outputs.token }}
 
