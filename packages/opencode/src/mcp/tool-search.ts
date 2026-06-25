@@ -1,10 +1,13 @@
 import { jsonSchema, tool, type JSONSchema7, type Tool, type ToolExecutionOptions } from "ai"
 import fuzzysort from "fuzzysort"
+import { Token } from "@opencode-ai/core/util/token"
 
 // Match Hermes defaults. OpenClaw independently uses the same maximum.
 const DEFAULT_SEARCH_LIMIT = 5
 const MAX_SEARCH_LIMIT = 20
 const MAX_SEARCH_DESCRIPTION = 400
+const SEARCH_THRESHOLD_TOKENS = 15_000
+const controls = new WeakSet<Tool>()
 
 type Entry = {
   id: string
@@ -12,6 +15,18 @@ type Entry = {
   parameters: string
   schema: JSONSchema7
   tool: Tool
+}
+
+export function shouldUse(tools: Record<string, Tool>, schemas: Record<string, JSONSchema7>) {
+  const catalog = Object.entries(tools)
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([name, item]) => JSON.stringify({ name, description: item.description, inputSchema: schemas[name] }))
+    .join("\n")
+  return Token.estimate(catalog) > SEARCH_THRESHOLD_TOKENS
+}
+
+export function isControl(item: Tool) {
+  return controls.has(item)
 }
 
 export function create(input: {
@@ -39,7 +54,7 @@ export function create(input: {
 
   if (entries.size === 0) return {}
 
-  return {
+  const result = {
     mcp_search: tool({
       description:
         "Search connected MCP tools by capability. Returns matching tool IDs and short descriptions. Use mcp_describe to inspect a tool before calling it.",
@@ -128,6 +143,8 @@ export function create(input: {
       },
     }),
   }
+  for (const item of Object.values(result)) controls.add(item)
+  return result
 }
 
 function resolve(entries: Map<string, Entry>, id: string) {

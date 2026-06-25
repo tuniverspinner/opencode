@@ -21,7 +21,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { isRecord } from "@/util/record"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { McpToolSearch } from "@/mcp/tool-search"
 
 const MCP_RESOURCE_TOOLS = {
   list: "list_mcp_resources",
@@ -384,6 +384,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
 
   const mcpTools: Record<string, AITool> = {}
   const mcpSchemas: Record<string, JSONSchema7> = {}
+  const mcpProviderSchemas: Record<string, JSONSchema7> = {}
   for (const [key, item] of Object.entries(yield* mcp.tools())) {
     const execute = item.execute
     if (!execute) continue
@@ -391,6 +392,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
     mcpSchemas[key] = { ...schema, properties: schema.properties ?? {} }
     const transformed = ProviderTransform.schema(input.model, { ...schema, properties: schema.properties ?? {} })
+    mcpProviderSchemas[key] = transformed
     item.inputSchema = jsonSchema(transformed)
     item.execute = (args, opts) =>
       run.promise(
@@ -486,12 +488,6 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     mcpTools[key] = item
   }
 
-  if (!Flag.OPENCODE_EXPERIMENTAL_MCP_TOOL_SEARCH) {
-    Object.assign(tools, mcpTools)
-    return tools
-  }
-
-  const { McpToolSearch } = yield* Effect.promise(() => import("@/mcp/tool-search"))
   const disabled = Permission.disabled(
     Object.keys(mcpTools),
     Permission.merge(input.agent.permission, input.session.permission ?? []),
@@ -501,6 +497,12 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   const searchable = Object.fromEntries(
     Object.entries(mcpTools).filter(([key]) => overrides?.[key] !== false && !disabled.has(key)),
   )
+  const providerSchemas = Object.fromEntries(Object.keys(searchable).map((key) => [key, mcpProviderSchemas[key]]))
+  if (!McpToolSearch.shouldUse(searchable, providerSchemas)) {
+    Object.assign(tools, mcpTools)
+    return tools
+  }
+
   const schemas = Object.fromEntries(Object.keys(searchable).map((key) => [key, mcpSchemas[key]]))
   const controls = McpToolSearch.create({
     tools: searchable,

@@ -44,6 +44,22 @@ async function catalog() {
 }
 
 describe("MCP tool search", () => {
+  test("uses direct tools below the token threshold", async () => {
+    const tools = {
+      github_create_issue: target("github_create_issue", "Create an issue"),
+    }
+    const schemas = { github_create_issue: { type: "object", properties: {} } } satisfies Record<string, JSONSchema7>
+    expect(McpToolSearch.shouldUse(tools, schemas)).toBe(false)
+  })
+
+  test("uses search above the token threshold", async () => {
+    const tools = {
+      large_catalog: target("large_catalog", "x".repeat(60_000)),
+    }
+    const schemas = { large_catalog: { type: "object", properties: {} } } satisfies Record<string, JSONSchema7>
+    expect(McpToolSearch.shouldUse(tools, schemas)).toBe(true)
+  })
+
   test("exposes only the three stable control tools", async () => {
     expect(Object.keys(await catalog())).toEqual(["mcp_search", "mcp_describe", "mcp_call"])
   })
