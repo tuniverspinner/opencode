@@ -22,7 +22,7 @@ import { NamedError } from "@opencode-ai/core/util/error"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { withTimeout } from "@/util/timeout"
 import { FSUtil } from "@opencode-ai/core/fs-util"
-import { McpOAuthProvider, OAUTH_CALLBACK_PATH } from "./oauth-provider"
+import { McpOAuthPendingProvider, McpOAuthProvider, OAUTH_CALLBACK_PATH } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -109,7 +109,7 @@ export type Status = Schema.Schema.Type<typeof Status>
 
 // Store transports for OAuth servers to allow finishing auth
 type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
-const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthProvider }>()
+const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthPendingProvider }>()
 
 // Prompt cache types
 type PromptInfo = Awaited<ReturnType<MCPClient["listPrompts"]>>["prompts"][number]
@@ -819,7 +819,7 @@ export const layer = Layer.effect(
         .join("")
       yield* auth.updateOAuthState(mcpName, oauthState)
       let capturedUrl: URL | undefined
-      const authProvider = new McpOAuthProvider(
+      const authProvider = new McpOAuthPendingProvider(
         mcpName,
         mcpConfig.url,
         {
@@ -834,7 +834,6 @@ export const layer = Layer.effect(
           },
         },
         auth,
-        { staged: true },
       )
 
       const transport = new StreamableHTTPClientTransport(url, {
