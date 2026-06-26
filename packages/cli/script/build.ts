@@ -20,6 +20,7 @@ const baselineFlag = process.argv.includes("--baseline")
 const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
 const plugin = createSolidTransformPlugin()
+const canary = Bun.spawnSync([process.execPath, "--revision"]).stdout.toString().includes("-canary.")
 
 const allTargets: {
   os: string
@@ -41,13 +42,17 @@ const allTargets: {
   { os: "win32", arch: "x64", avx2: false },
 ]
 
-const targets = singleFlag
-  ? allTargets.filter((item) => {
-      if (item.os !== process.platform || item.arch !== process.arch) return false
-      if (item.avx2 === false) return baselineFlag
-      return item.abi === undefined
-    })
-  : allTargets
+const targets = (
+  singleFlag
+    ? allTargets.filter((item) => {
+        if (item.os !== process.platform || item.arch !== process.arch) return false
+        if (item.avx2 === false) return baselineFlag
+        return item.abi === undefined
+      })
+    : allTargets
+)
+  // Bun does not publish a current Darwin x64 baseline canary, so we must not publish one either :(
+  .filter((item) => !(canary && item.os === "darwin" && item.arch === "x64" && item.avx2 === false))
 
 // --no-save keeps Bun 1.4 from rewriting bun.lock while adding cross-platform native packages.
 if (!skipInstall) await $`bun install --no-save --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
@@ -82,7 +87,10 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: target.replace(binary, "bun") as Bun.Build.CompileTarget,
+      // The baseline CI host otherwise makes unspecified x64 compile targets inherit baseline mode.
+      target: [target.replace(binary, "bun"), item.arch === "x64" && item.avx2 !== false ? "modern" : undefined]
+        .filter(Boolean)
+        .join("-") as Bun.Build.CompileTarget,
       outfile: `./dist/${name}/bin/${binary}`,
       execArgv: [`--user-agent=${binary}/${Script.version}`, "--use-system-ca", "--"],
       windows: {},

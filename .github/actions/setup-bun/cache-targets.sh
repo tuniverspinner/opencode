@@ -30,8 +30,3 @@ for target in "${targets[@]}"; do
   install -m 755 "$source" "$cache/bun-${target}-v${version}"
   rm -rf "$temp/bun-${target}" "$temp/bun.zip"
 done
-
-# Bun's canary Darwin baseline asset is stale, so alias the current x64 runtime instead.
-if [[ "$selector" == "canary" ]]; then
-  cp "$cache/bun-darwin-x64-v${version}" "$cache/bun-darwin-x64-baseline-v${version}"
-fi
