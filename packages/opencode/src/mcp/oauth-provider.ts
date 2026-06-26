@@ -17,7 +17,6 @@ export interface McpOAuthConfig {
   scope?: string
   callbackPort?: number
   redirectUri?: string
-  deferPersistence?: boolean
 }
 
 export interface McpOAuthCallbacks {
@@ -34,6 +33,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
     private config: McpOAuthConfig,
     private callbacks: McpOAuthCallbacks,
     private auth: McpAuth.Interface,
+    private options?: { staged: true },
   ) {}
 
   get redirectUrl(): string {
@@ -57,15 +57,13 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformation | undefined> {
-    // Check config first (pre-registered client)
     if (this.config.clientId) {
       return {
         client_id: this.config.clientId,
         client_secret: this.config.clientSecret,
       }
     }
-
-    if (this.config.deferPersistence) return this.pendingClientInfo
+    if (this.options?.staged) return this.pendingClientInfo
 
     // Check stored client info (from dynamic registration)
     // Use getForUrl to validate credentials are for the current server URL
@@ -86,7 +84,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
-    if (this.config.deferPersistence) {
+    if (this.options?.staged) {
       this.pendingClientInfo = info
       return
     }
@@ -105,7 +103,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    if (this.config.deferPersistence) return this.pendingTokens
+    if (this.options?.staged) return this.pendingTokens
     // Use getForUrl to validate tokens are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
     if (!entry?.tokens) return undefined
@@ -122,7 +120,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
-    if (this.config.deferPersistence) {
+    if (this.options?.staged) {
       this.pendingTokens = tokens
       return
     }
@@ -178,26 +176,30 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async invalidateCredentials(type: "all" | "client" | "tokens"): Promise<void> {
-    if (this.config.deferPersistence) {
+    if (this.options?.staged) {
       if (type === "all" || type === "client") this.pendingClientInfo = undefined
       if (type === "all" || type === "tokens") this.pendingTokens = undefined
       return
     }
+    const entry = await Effect.runPromise(this.auth.get(this.mcpName))
+    if (!entry) return
     switch (type) {
       case "all":
         await Effect.runPromise(this.auth.remove(this.mcpName))
         break
       case "client":
-        await Effect.runPromise(this.auth.clearClientInfo(this.mcpName))
+        delete entry.clientInfo
+        await Effect.runPromise(this.auth.set(this.mcpName, entry))
         break
       case "tokens":
-        await Effect.runPromise(this.auth.clearTokens(this.mcpName))
+        delete entry.tokens
+        await Effect.runPromise(this.auth.set(this.mcpName, entry))
         break
     }
   }
 
   async commit(): Promise<void> {
-    if (!this.config.deferPersistence || !this.pendingTokens) return
+    if (!this.pendingTokens) return
     await Effect.runPromise(
       this.auth.set(
         this.mcpName,

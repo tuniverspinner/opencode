@@ -301,7 +301,7 @@ export const layer = Layer.effect(
                   })
                   .pipe(Effect.ignore, Effect.as(undefined))
               } else {
-                pendingOAuthTransports.set(key, { transport, provider: authProvider })
+                pendingOAuthTransports.set(key, { transport })
                 lastStatus = { status: "needs_auth" as const }
                 return events
                   .publish(TuiEvent.ToastShow, {
@@ -803,12 +803,6 @@ export const layer = Layer.effect(
       const url = remoteURL(mcpConfig.url)
       if (!url) throw new Error(`Invalid MCP URL for "${mcpName}"`)
 
-      const pending = pendingOAuthTransports.get(mcpName)
-      McpOAuthCallback.cancelPending(mcpName)
-      pendingOAuthTransports.delete(mcpName)
-      yield* Effect.tryPromise(() => pending?.transport.close() ?? Promise.resolve()).pipe(Effect.ignore)
-      yield* auth.resetOAuthFlow(mcpName)
-
       // OAuth config is optional - if not provided, we'll use auto-discovery
       const oauthConfig = typeof mcpConfig.oauth === "object" ? mcpConfig.oauth : undefined
 
@@ -833,7 +827,6 @@ export const layer = Layer.effect(
           clientSecret: oauthConfig?.clientSecret,
           scope: oauthConfig?.scope,
           redirectUri: effectiveRedirectUri,
-          deferPersistence: true,
         },
         {
           onRedirect: async (url) => {
@@ -841,6 +834,7 @@ export const layer = Layer.effect(
           },
         },
         auth,
+        { staged: true },
       )
 
       const transport = new StreamableHTTPClientTransport(url, {

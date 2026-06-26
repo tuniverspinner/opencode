@@ -44,15 +44,12 @@ export interface Interface {
   readonly set: (mcpName: string, entry: Entry, serverUrl?: string) => Effect.Effect<void>
   readonly remove: (mcpName: string) => Effect.Effect<void>
   readonly updateTokens: (mcpName: string, tokens: Tokens, serverUrl?: string) => Effect.Effect<void>
-  readonly clearTokens: (mcpName: string) => Effect.Effect<void>
   readonly updateClientInfo: (mcpName: string, clientInfo: ClientInfo, serverUrl?: string) => Effect.Effect<void>
-  readonly clearClientInfo: (mcpName: string) => Effect.Effect<void>
   readonly updateCodeVerifier: (mcpName: string, codeVerifier: string) => Effect.Effect<void>
   readonly clearCodeVerifier: (mcpName: string) => Effect.Effect<void>
   readonly updateOAuthState: (mcpName: string, oauthState: string) => Effect.Effect<void>
   readonly getOAuthState: (mcpName: string) => Effect.Effect<string | undefined>
   readonly clearOAuthState: (mcpName: string) => Effect.Effect<void>
-  readonly resetOAuthFlow: (mcpName: string) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/McpAuth") {}
@@ -136,21 +133,8 @@ export const layer = Layer.effect(
     const updateClientInfo = updateField("clientInfo", "updateClientInfo")
     const updateCodeVerifier = updateField("codeVerifier", "updateCodeVerifier")
     const updateOAuthState = updateField("oauthState", "updateOAuthState")
-    const clearTokens = clearField("tokens", "clearTokens")
-    const clearClientInfo = clearField("clientInfo", "clearClientInfo")
     const clearCodeVerifier = clearField("codeVerifier", "clearCodeVerifier")
     const clearOAuthState = clearField("oauthState", "clearOAuthState")
-
-    const resetOAuthFlow = Effect.fn("McpAuth.resetOAuthFlow")(function* (mcpName: string) {
-      yield* mutate((data) => {
-        const current = data[mcpName]
-        if (!current) return undefined
-        const entry = { ...current }
-        delete entry.codeVerifier
-        delete entry.oauthState
-        return { ...data, [mcpName]: entry }
-      })
-    })
 
     const getOAuthState = Effect.fn("McpAuth.getOAuthState")(function* (mcpName: string) {
       const entry = yield* get(mcpName)
@@ -164,15 +148,12 @@ export const layer = Layer.effect(
       set,
       remove,
       updateTokens,
-      clearTokens,
       updateClientInfo,
-      clearClientInfo,
       updateCodeVerifier,
       clearCodeVerifier,
       updateOAuthState,
       getOAuthState,
       clearOAuthState,
-      resetOAuthFlow,
     })
   }),
 )

@@ -1,10 +1,9 @@
 import { expect, test } from "bun:test"
 import { setTimeout as sleep } from "node:timers/promises"
-import { Deferred, Effect, Fiber, Layer } from "effect"
+import { Effect, Layer } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
 import { McpAuth } from "../../src/mcp/auth"
-import { McpOAuthProvider } from "../../src/mcp/oauth-provider"
 
 function authFile() {
   let raw = ""
@@ -53,20 +52,6 @@ function authService(layer: Layer.Layer<FSUtil.Service>) {
   )
 }
 
-function gateCredentialInvalidation(
-  auth: McpAuth.Interface,
-  ready: Deferred.Deferred<void>,
-  release: Deferred.Deferred<void>,
-) {
-  const gate = Deferred.succeed(ready, undefined).pipe(Effect.ignore, Effect.andThen(Deferred.await(release)))
-  return McpAuth.Service.of({
-    ...auth,
-    get: (mcpName) => auth.get(mcpName).pipe(Effect.tap(() => gate)),
-    clearTokens: (mcpName) => gate.pipe(Effect.andThen(auth.clearTokens(mcpName))),
-    clearClientInfo: (mcpName) => gate.pipe(Effect.andThen(auth.clearClientInfo(mcpName))),
-  })
-}
-
 test("serializes concurrent auth file updates across service instances", async () => {
   const file = authFile()
 
@@ -89,73 +74,5 @@ test("serializes concurrent auth file updates across service instances", async (
       expect(entry?.serverUrl).toBe("https://mcp.posthog.com/mcp")
       expect(() => JSON.parse(file.raw())).not.toThrow()
     }),
-  )
-})
-
-test("concurrent token invalidation does not overwrite newer client registration", async () => {
-  const name = `token-invalidation-${crypto.randomUUID()}`
-  const url = "https://mcp.example.com/exact/path"
-
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const first = yield* McpAuth.Service
-      const second = yield* authService(FSUtil.defaultLayer)
-      const ready = yield* Deferred.make<void>()
-      const release = yield* Deferred.make<void>()
-      const provider = new McpOAuthProvider(
-        name,
-        url,
-        {},
-        { onRedirect: async () => {} },
-        gateCredentialInvalidation(first, ready, release),
-      )
-
-      yield* first.updateTokens(name, { accessToken: "old-token" }, url)
-      const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("tokens")).pipe(Effect.forkChild)
-      yield* Deferred.await(ready)
-      yield* second.updateClientInfo(name, { clientId: "new-client" }, url)
-      yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
-      yield* Fiber.join(invalidation)
-
-      const entry = yield* first.get(name)
-      expect(entry?.tokens).toBeUndefined()
-      expect(entry?.clientInfo?.clientId).toBe("new-client")
-      expect(entry?.serverUrl).toBe(url)
-      yield* first.remove(name)
-    }).pipe(Effect.provide(McpAuth.defaultLayer)),
-  )
-})
-
-test("concurrent client invalidation does not overwrite newer tokens", async () => {
-  const name = `client-invalidation-${crypto.randomUUID()}`
-  const url = "https://mcp.example.com/exact/path"
-
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const first = yield* McpAuth.Service
-      const second = yield* authService(FSUtil.defaultLayer)
-      const ready = yield* Deferred.make<void>()
-      const release = yield* Deferred.make<void>()
-      const provider = new McpOAuthProvider(
-        name,
-        url,
-        {},
-        { onRedirect: async () => {} },
-        gateCredentialInvalidation(first, ready, release),
-      )
-
-      yield* first.updateClientInfo(name, { clientId: "old-client" }, url)
-      const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("client")).pipe(Effect.forkChild)
-      yield* Deferred.await(ready)
-      yield* second.updateTokens(name, { accessToken: "new-token" }, url)
-      yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
-      yield* Fiber.join(invalidation)
-
-      const entry = yield* first.get(name)
-      expect(entry?.clientInfo).toBeUndefined()
-      expect(entry?.tokens?.accessToken).toBe("new-token")
-      expect(entry?.serverUrl).toBe(url)
-      yield* first.remove(name)
-    }).pipe(Effect.provide(McpAuth.defaultLayer)),
   )
 })
