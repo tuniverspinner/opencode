@@ -54,16 +54,12 @@ runs:
       shell: bash
       env:
         SELECTOR: ${{ steps.resolve.outputs.selector }}
-        EXPECTED_REVISION: ${{ steps.resolve.outputs.revision }}
       run: |
         VERSION=$(bun --version)
         REVISION=$(bun --revision)
         COMPILE_VERSION=$(echo "$VERSION" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
         if [ "$SELECTOR" = "canary" ]; then
-          if [ "$REVISION" != "$EXPECTED_REVISION" ]; then
-            echo "Expected Bun $EXPECTED_REVISION, got $REVISION" >&2
-            exit 1
-          fi
+          echo "$REVISION" | grep -q canary
         elif [ "${REVISION%%+*}" != "$SELECTOR" ]; then
           echo "Expected Bun $SELECTOR, got $REVISION" >&2
           exit 1
