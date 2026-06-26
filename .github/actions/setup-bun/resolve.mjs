@@ -12,7 +12,12 @@ const target = process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME
 const release =
   process.env.GITHUB_WORKFLOW === "publish" &&
   (event.inputs?.bump || (event.inputs?.version && !event.inputs.version.startsWith("0.0.0-")))
-const channel = process.env.GITHUB_WORKFLOW === "beta" || target === "beta" ? "beta" : release ? "prod" : "dev"
+const channel =
+  process.env.GITHUB_WORKFLOW === "beta" || target === "beta"
+    ? "beta"
+    : release || target === "production"
+      ? "prod"
+      : "dev"
 const selector = config[channel]
 
 if (!selector) throw new Error(`Unknown Bun channel: ${channel}`)

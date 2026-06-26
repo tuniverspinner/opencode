@@ -87,8 +87,11 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      // The baseline CI host otherwise makes unspecified x64 compile targets inherit baseline mode.
-      target: [target.replace(binary, "bun"), item.arch === "x64" && item.avx2 !== false ? "modern" : undefined]
+      // The baseline canary CI host otherwise makes unspecified x64 compile targets inherit baseline mode.
+      target: [
+        target.replace(binary, "bun"),
+        canary && item.arch === "x64" && item.avx2 !== false ? "modern" : undefined,
+      ]
         .filter(Boolean)
         .join("-") as Bun.Build.CompileTarget,
       outfile: `./dist/${name}/bin/${binary}`,

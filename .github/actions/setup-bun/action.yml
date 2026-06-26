@@ -65,6 +65,7 @@ runs:
           echo "Expected Bun $SELECTOR, got $REVISION" >&2
           exit 1
         fi
+        echo "OPENCODE_BUN_VERSION=$VERSION" >> "$GITHUB_ENV"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
         echo "compile-version=$COMPILE_VERSION" >> "$GITHUB_OUTPUT"

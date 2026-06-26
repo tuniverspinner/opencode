@@ -185,8 +185,11 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      // The baseline CI host otherwise makes unspecified x64 compile targets inherit baseline mode.
-      target: [name.replace(pkg.name, "bun"), item.arch === "x64" && item.avx2 !== false ? "modern" : undefined]
+      // The baseline canary CI host otherwise makes unspecified x64 compile targets inherit baseline mode.
+      target: [
+        name.replace(pkg.name, "bun"),
+        canary && item.arch === "x64" && item.avx2 !== false ? "modern" : undefined,
+      ]
         .filter(Boolean)
         .join("-") as any,
       outfile: `dist/${name}/bin/opencode`,
