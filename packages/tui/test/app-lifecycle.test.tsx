@@ -6,6 +6,37 @@ import { Global } from "@opencode-ai/core/global"
 import { createTuiResolvedConfig } from "./fixture/tui-runtime"
 import { createEventSource, createFetch, directory, json } from "./fixture/tui-sdk"
 
+test("renderer initialization preserves the original error message", async () => {
+  const core = await import("@opentui/core")
+  const message = 'Failed to open library "opentui.dll": error code 126'
+  mock.module("@opentui/core", () => ({
+    ...core,
+    createCliRenderer: async () => {
+      throw new Error(message)
+    },
+  }))
+
+  try {
+    const { run } = await import("../src/app")
+    await expect(
+      Effect.runPromise(
+        run({
+          url: "http://test",
+          directory,
+          config: createTuiResolvedConfig({ plugin_enabled: {} }),
+          args: {},
+          pluginHost: {
+            async start() {},
+            async dispose() {},
+          },
+        }).pipe(Effect.provide(Global.defaultLayer)),
+      ),
+    ).rejects.toThrow(message)
+  } finally {
+    mock.restore()
+  }
+})
+
 test("SIGHUP clears title and disposes scoped resources once", async () => {
   const setup = await createTestRenderer({ width: 80, height: 24, useThread: false })
   const core = await import("@opentui/core")
