@@ -3,6 +3,7 @@
 import { $ } from "bun"
 import fs from "fs"
 import path from "path"
+import { createRequire } from "module"
 import { fileURLToPath } from "url"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 
@@ -149,6 +150,13 @@ const installedParserWorker = fs.realpathSync(
 )
 await fs.promises.mkdir(path.dirname(path.resolve(dir, localParserWorker)), { recursive: true })
 await fs.promises.copyFile(installedParserWorker, path.resolve(dir, localParserWorker))
+const parserWorkerPlugin: Bun.BunPlugin = {
+  name: "local-parser-worker",
+  setup(build) {
+    const require = createRequire(installedParserWorker)
+    build.onResolve({ filter: /^web-tree-sitter(?:\/.*)?$/ }, (args) => ({ path: require.resolve(args.path) }))
+  },
+}
 
 const binaries: Record<string, string> = {}
 if (!skipInstall) {
@@ -179,7 +187,7 @@ for (const item of targets) {
   await Bun.build({
     conditions: ["bun", "node"],
     tsconfig: "./tsconfig.json",
-    plugins: [plugin],
+    plugins: [plugin, parserWorkerPlugin],
     external: ["node-gyp"],
     format: "esm",
     minify: true,
