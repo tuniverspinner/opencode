@@ -87,7 +87,7 @@ runs:
           ${{ runner.os }}-${{ runner.arch }}-bun-${{ steps.metadata.outputs.revision }}-
 
     - name: Pre-cache Bun cross-compile runtimes
-      if: inputs.cross-compile == 'true'
+      if: inputs.cross-compile == 'true' && steps.resolve.outputs.selector == 'canary'
       shell: bash
       # Canary target packages are not published under the base 1.4.0 npm version Bun requests.
       run: >-
