@@ -2,7 +2,7 @@
 set -euo pipefail
 
 selector="$1"
-tag="$2"
+base_url="$2"
 version="$3"
 revision="$4"
 cache="$5"
@@ -21,7 +21,7 @@ fi
 
 mkdir -p "$cache"
 for target in "${targets[@]}"; do
-  curl -fsSL "https://github.com/oven-sh/bun/releases/download/${tag}/bun-${target}.zip" -o "$temp/bun.zip"
+  curl -fsSL "${base_url}/bun-${target}.zip" -o "$temp/bun.zip"
   unzip -qo "$temp/bun.zip" -d "$temp"
   binary="bun"
   [[ "$target" == windows-* ]] && binary="bun.exe"

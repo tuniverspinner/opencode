@@ -26,7 +26,7 @@ runs:
       shell: bash
       env:
         SELECTOR: ${{ steps.resolve.outputs.selector }}
-        TAG: ${{ steps.resolve.outputs.tag }}
+        BASE_URL: ${{ steps.resolve.outputs.base-url }}
       run: |
         if [ "$RUNNER_ARCH" != "X64" ]; then
           exit
@@ -40,7 +40,7 @@ runs:
         if [ "$SELECTOR" = "canary" ] && [ "$OS" = "darwin" ]; then
           SUFFIX=
         fi
-        echo "url=https://github.com/oven-sh/bun/releases/download/${TAG}/bun-${OS}-x64${SUFFIX}.zip" >> "$GITHUB_OUTPUT"
+        echo "url=${BASE_URL}/bun-${OS}-x64${SUFFIX}.zip" >> "$GITHUB_OUTPUT"
 
     - name: Setup Bun
       id: bun
@@ -95,7 +95,7 @@ runs:
       run: >-
         bash "$GITHUB_ACTION_PATH/cache-targets.sh"
         "${{ steps.resolve.outputs.selector }}"
-        "${{ steps.resolve.outputs.tag }}"
+        "${{ steps.resolve.outputs.base-url }}"
         "${{ steps.metadata.outputs.compile-version }}"
         "${{ steps.metadata.outputs.revision }}"
         "${{ steps.cache.outputs.dir }}"
