@@ -52,7 +52,7 @@ export interface Interface {
   readonly updateOAuthState: (mcpName: string, oauthState: string) => Effect.Effect<void>
   readonly getOAuthState: (mcpName: string) => Effect.Effect<string | undefined>
   readonly clearOAuthState: (mcpName: string) => Effect.Effect<void>
-  readonly resetForReauthentication: (mcpName: string) => Effect.Effect<void>
+  readonly resetOAuthFlow: (mcpName: string) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/McpAuth") {}
@@ -141,13 +141,11 @@ export const layer = Layer.effect(
     const clearCodeVerifier = clearField("codeVerifier", "clearCodeVerifier")
     const clearOAuthState = clearField("oauthState", "clearOAuthState")
 
-    const resetForReauthentication = Effect.fn("McpAuth.resetForReauthentication")(function* (mcpName: string) {
+    const resetOAuthFlow = Effect.fn("McpAuth.resetOAuthFlow")(function* (mcpName: string) {
       yield* mutate((data) => {
         const current = data[mcpName]
         if (!current) return undefined
         const entry = { ...current }
-        delete entry.tokens
-        delete entry.clientInfo
         delete entry.codeVerifier
         delete entry.oauthState
         return { ...data, [mcpName]: entry }
@@ -174,7 +172,7 @@ export const layer = Layer.effect(
       updateOAuthState,
       getOAuthState,
       clearOAuthState,
-      resetForReauthentication,
+      resetOAuthFlow,
     })
   }),
 )

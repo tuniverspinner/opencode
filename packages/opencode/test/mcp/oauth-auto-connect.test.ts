@@ -24,6 +24,8 @@ let connectSucceedsImmediately = false
 let serverCapabilities: { tools?: object; resources?: object } = { tools: {} }
 let listToolsCalls = 0
 let transportCloseCount = 0
+let finishAuthFails = false
+let finishAuthStoresCredentials = false
 
 // Mock the transport constructors to simulate OAuth auto-auth on 401
 void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
@@ -34,6 +36,8 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
           redirectToAuthorization?: (url: URL) => Promise<void>
           saveCodeVerifier?: (v: string) => Promise<void>
           tokens?: () => Promise<{ access_token: string } | undefined>
+          saveClientInformation?: (info: { client_id: string; client_secret?: string }) => Promise<void>
+          saveTokens?: (tokens: { access_token: string; token_type: string }) => Promise<void>
         }
       | undefined
     constructor(url: URL, options?: { authProvider?: unknown }) {
@@ -68,7 +72,13 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
       }
       throw new MockUnauthorizedError()
     }
-    async finishAuth(_code: string) {}
+    async finishAuth(_code: string) {
+      if (finishAuthFails) throw new Error("Token exchange failed")
+      if (finishAuthStoresCredentials) {
+        await this.authProvider?.saveClientInformation?.({ client_id: "replacement-client" })
+        await this.authProvider?.saveTokens?.({ access_token: "replacement-token", token_type: "Bearer" })
+      }
+    }
     async close() {
       transportCloseCount++
     }
@@ -132,6 +142,8 @@ beforeEach(() => {
   serverCapabilities = { tools: {} }
   listToolsCalls = 0
   transportCloseCount = 0
+  finishAuthFails = false
+  finishAuthStoresCredentials = false
 })
 
 // Import modules after mocking
@@ -236,7 +248,7 @@ mcpTest.instance("state() returns existing state when one is saved", () =>
 )
 
 mcpTest.instance(
-  "reauthentication starts fresh with a new dynamic client registration",
+  "reauthentication preserves existing credentials until replacement succeeds",
   () =>
     Effect.gen(function* () {
       yield* Effect.addFinalizer(() => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore))
@@ -256,8 +268,8 @@ mcpTest.instance(
 
       expect(first.authorizationUrl).toContain("https://auth.example.com/authorize")
       expect(first.oauthState).not.toBe("stale-state")
-      expect(afterFirst?.tokens).toBeUndefined()
-      expect(afterFirst?.clientInfo).toBeUndefined()
+      expect(afterFirst?.tokens?.accessToken).toBe("stale-token")
+      expect(afterFirst?.clientInfo).toEqual(clientInfo)
       expect(afterFirst?.serverUrl).toBe(url)
       expect(afterFirst?.codeVerifier).toBe("test-verifier")
       expect(afterFirst?.oauthState).toBe(first.oauthState)
@@ -270,8 +282,63 @@ mcpTest.instance(
       expect(cancellation).toBeInstanceOf(Error)
       if (!(cancellation instanceof Error)) throw new Error("Expected abandoned authorization to be cancelled")
       expect(cancellation.message).toBe("Authorization cancelled")
+      const afterCancellation = yield* auth.get(name)
+      expect(afterCancellation?.tokens?.accessToken).toBe("stale-token")
+      expect(afterCancellation?.clientInfo).toEqual(clientInfo)
     }),
   { config: config("test-reauth") },
+)
+
+mcpTest.instance(
+  "failed reauthentication preserves existing credentials",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore))
+      const mcp = yield* MCP.Service
+      const auth = yield* McpAuth.Service
+      const name = "test-reauth-failure"
+      const url = "https://example.com/mcp"
+      const clientInfo = { clientId: "dynamic-client", clientSecret: "dynamic-secret" }
+
+      yield* auth.updateClientInfo(name, clientInfo, url)
+      yield* auth.updateTokens(name, { accessToken: "working-token" }, url)
+      yield* mcp.startAuth(name)
+      finishAuthFails = true
+
+      expect(yield* mcp.finishAuth(name, "invalid-code")).toEqual({
+        status: "failed",
+        error: "OAuth completion failed",
+      })
+      const entry = yield* auth.get(name)
+      expect(entry?.tokens?.accessToken).toBe("working-token")
+      expect(entry?.clientInfo).toEqual(clientInfo)
+    }),
+  { config: config("test-reauth-failure") },
+)
+
+mcpTest.instance(
+  "successful reauthentication commits replacement credentials",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore))
+      const mcp = yield* MCP.Service
+      const auth = yield* McpAuth.Service
+      const name = "test-reauth-success"
+      const url = "https://example.com/mcp"
+
+      yield* auth.updateClientInfo(name, { clientId: "old-client" }, url)
+      yield* auth.updateTokens(name, { accessToken: "old-token" }, url)
+      yield* mcp.startAuth(name)
+      finishAuthStoresCredentials = true
+      connectSucceedsImmediately = true
+
+      expect((yield* mcp.finishAuth(name, "valid-code")).status).toBe("connected")
+      const entry = yield* auth.get(name)
+      expect(entry?.tokens?.accessToken).toBe("replacement-token")
+      expect(entry?.clientInfo?.clientId).toBe("replacement-client")
+      expect(entry?.serverUrl).toBe(url)
+    }),
+  { config: config("test-reauth-success") },
 )
 
 mcpTest.instance(
