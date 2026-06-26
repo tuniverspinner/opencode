@@ -61,8 +61,9 @@ function gateCredentialInvalidation(
   const gate = Deferred.succeed(ready, undefined).pipe(Effect.ignore, Effect.andThen(Deferred.await(release)))
   return McpAuth.Service.of({
     ...auth,
-    invalidateCredentials: (mcpName, type, expected) =>
-      gate.pipe(Effect.andThen(auth.invalidateCredentials(mcpName, type, expected))),
+    get: (mcpName) => auth.get(mcpName).pipe(Effect.tap(() => gate)),
+    clearTokens: (mcpName) => gate.pipe(Effect.andThen(auth.clearTokens(mcpName))),
+    clearClientInfo: (mcpName) => gate.pipe(Effect.andThen(auth.clearClientInfo(mcpName))),
   })
 }
 
@@ -91,7 +92,7 @@ test("serializes concurrent auth file updates across service instances", async (
   )
 })
 
-test("stale token invalidation does not delete newer tokens", async () => {
+test("concurrent token invalidation does not overwrite newer client registration", async () => {
   const name = `token-invalidation-${crypto.randomUUID()}`
   const url = "https://mcp.example.com/exact/path"
 
@@ -110,22 +111,22 @@ test("stale token invalidation does not delete newer tokens", async () => {
       )
 
       yield* first.updateTokens(name, { accessToken: "old-token" }, url)
-      yield* Effect.promise(() => provider.tokens())
       const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("tokens")).pipe(Effect.forkChild)
       yield* Deferred.await(ready)
-      yield* second.updateTokens(name, { accessToken: "new-token" }, url)
+      yield* second.updateClientInfo(name, { clientId: "new-client" }, url)
       yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
       yield* Fiber.join(invalidation)
 
       const entry = yield* first.get(name)
-      expect(entry?.tokens?.accessToken).toBe("new-token")
+      expect(entry?.tokens).toBeUndefined()
+      expect(entry?.clientInfo?.clientId).toBe("new-client")
       expect(entry?.serverUrl).toBe(url)
       yield* first.remove(name)
     }).pipe(Effect.provide(McpAuth.defaultLayer)),
   )
 })
 
-test("stale client invalidation does not delete newer registration", async () => {
+test("concurrent client invalidation does not overwrite newer tokens", async () => {
   const name = `client-invalidation-${crypto.randomUUID()}`
   const url = "https://mcp.example.com/exact/path"
 
@@ -144,15 +145,15 @@ test("stale client invalidation does not delete newer registration", async () =>
       )
 
       yield* first.updateClientInfo(name, { clientId: "old-client" }, url)
-      yield* Effect.promise(() => provider.clientInformation())
       const invalidation = yield* Effect.promise(() => provider.invalidateCredentials("client")).pipe(Effect.forkChild)
       yield* Deferred.await(ready)
-      yield* second.updateClientInfo(name, { clientId: "new-client" }, url)
+      yield* second.updateTokens(name, { accessToken: "new-token" }, url)
       yield* Deferred.succeed(release, undefined).pipe(Effect.ignore)
       yield* Fiber.join(invalidation)
 
       const entry = yield* first.get(name)
-      expect(entry?.clientInfo?.clientId).toBe("new-client")
+      expect(entry?.clientInfo).toBeUndefined()
+      expect(entry?.tokens?.accessToken).toBe("new-token")
       expect(entry?.serverUrl).toBe(url)
       yield* first.remove(name)
     }).pipe(Effect.provide(McpAuth.defaultLayer)),

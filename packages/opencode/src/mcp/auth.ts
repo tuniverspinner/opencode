@@ -5,7 +5,6 @@ import { Global } from "@opencode-ai/core/global"
 import { Effect, Layer, Context, Option, Schema } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
-import { isDeepEqual } from "remeda"
 
 export const Tokens = Schema.Struct({
   accessToken: Schema.mutableKey(Schema.String),
@@ -45,12 +44,9 @@ export interface Interface {
   readonly set: (mcpName: string, entry: Entry, serverUrl?: string) => Effect.Effect<void>
   readonly remove: (mcpName: string) => Effect.Effect<void>
   readonly updateTokens: (mcpName: string, tokens: Tokens, serverUrl?: string) => Effect.Effect<void>
+  readonly clearTokens: (mcpName: string) => Effect.Effect<void>
   readonly updateClientInfo: (mcpName: string, clientInfo: ClientInfo, serverUrl?: string) => Effect.Effect<void>
-  readonly invalidateCredentials: (
-    mcpName: string,
-    type: "all" | "client" | "tokens",
-    expected: Pick<Entry, "tokens" | "clientInfo">,
-  ) => Effect.Effect<void>
+  readonly clearClientInfo: (mcpName: string) => Effect.Effect<void>
   readonly updateCodeVerifier: (mcpName: string, codeVerifier: string) => Effect.Effect<void>
   readonly clearCodeVerifier: (mcpName: string) => Effect.Effect<void>
   readonly updateOAuthState: (mcpName: string, oauthState: string) => Effect.Effect<void>
@@ -140,25 +136,10 @@ export const layer = Layer.effect(
     const updateClientInfo = updateField("clientInfo", "updateClientInfo")
     const updateCodeVerifier = updateField("codeVerifier", "updateCodeVerifier")
     const updateOAuthState = updateField("oauthState", "updateOAuthState")
+    const clearTokens = clearField("tokens", "clearTokens")
+    const clearClientInfo = clearField("clientInfo", "clearClientInfo")
     const clearCodeVerifier = clearField("codeVerifier", "clearCodeVerifier")
     const clearOAuthState = clearField("oauthState", "clearOAuthState")
-
-    const invalidateCredentials = Effect.fn("McpAuth.invalidateCredentials")(function* (
-      mcpName: string,
-      type: "all" | "client" | "tokens",
-      expected: Pick<Entry, "tokens" | "clientInfo">,
-    ) {
-      yield* mutate((data) => {
-        const current = data[mcpName]
-        if (!current) return undefined
-        const entry = { ...current }
-        if ((type === "all" || type === "tokens") && credentialsEqual(current.tokens, expected.tokens))
-          delete entry.tokens
-        if ((type === "all" || type === "client") && credentialsEqual(current.clientInfo, expected.clientInfo))
-          delete entry.clientInfo
-        return { ...data, [mcpName]: entry }
-      })
-    })
 
     const resetOAuthFlow = Effect.fn("McpAuth.resetOAuthFlow")(function* (mcpName: string) {
       yield* mutate((data) => {
@@ -183,8 +164,9 @@ export const layer = Layer.effect(
       set,
       remove,
       updateTokens,
+      clearTokens,
       updateClientInfo,
-      invalidateCredentials,
+      clearClientInfo,
       updateCodeVerifier,
       clearCodeVerifier,
       updateOAuthState,
@@ -198,9 +180,5 @@ export const layer = Layer.effect(
 export const defaultLayer = layer.pipe(Layer.provide(EffectFlock.defaultLayer), Layer.provide(FSUtil.defaultLayer))
 
 export const node = LayerNode.make({ service: Service, layer: layer, deps: [FSUtil.node, EffectFlock.node] })
-
-function credentialsEqual(left: Tokens | ClientInfo | undefined, right: Tokens | ClientInfo | undefined) {
-  return isDeepEqual(left, right)
-}
 
 export * as McpAuth from "./auth"

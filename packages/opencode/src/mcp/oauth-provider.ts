@@ -27,8 +27,6 @@ export interface McpOAuthCallbacks {
 export class McpOAuthProvider implements OAuthClientProvider {
   private pendingClientInfo?: OAuthClientInformationFull
   private pendingTokens?: OAuthTokens
-  private observedClientInfo?: McpAuth.ClientInfo
-  private observedTokens?: McpAuth.Tokens
 
   constructor(
     private mcpName: string,
@@ -73,7 +71,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
     // Use getForUrl to validate credentials are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
     if (entry?.clientInfo) {
-      this.observedClientInfo = entry.clientInfo
       // Check if client secret has expired
       if (entry.clientInfo.clientSecretExpiresAt && entry.clientInfo.clientSecretExpiresAt < Date.now() / 1000) {
         return undefined
@@ -93,13 +90,18 @@ export class McpOAuthProvider implements OAuthClientProvider {
       this.pendingClientInfo = info
       return
     }
-    this.observedClientInfo = {
-      clientId: info.client_id,
-      clientSecret: info.client_secret,
-      clientIdIssuedAt: info.client_id_issued_at,
-      clientSecretExpiresAt: info.client_secret_expires_at,
-    }
-    await Effect.runPromise(this.auth.updateClientInfo(this.mcpName, this.observedClientInfo, this.serverUrl))
+    await Effect.runPromise(
+      this.auth.updateClientInfo(
+        this.mcpName,
+        {
+          clientId: info.client_id,
+          clientSecret: info.client_secret,
+          clientIdIssuedAt: info.client_id_issued_at,
+          clientSecretExpiresAt: info.client_secret_expires_at,
+        },
+        this.serverUrl,
+      ),
+    )
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
@@ -107,7 +109,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
     // Use getForUrl to validate tokens are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
     if (!entry?.tokens) return undefined
-    this.observedTokens = entry.tokens
 
     return {
       access_token: entry.tokens.accessToken,
@@ -125,13 +126,18 @@ export class McpOAuthProvider implements OAuthClientProvider {
       this.pendingTokens = tokens
       return
     }
-    this.observedTokens = {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      expiresAt: tokens.expires_in ? Date.now() / 1000 + tokens.expires_in : undefined,
-      scope: tokens.scope,
-    }
-    await Effect.runPromise(this.auth.updateTokens(this.mcpName, this.observedTokens, this.serverUrl))
+    await Effect.runPromise(
+      this.auth.updateTokens(
+        this.mcpName,
+        {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresAt: tokens.expires_in ? Date.now() / 1000 + tokens.expires_in : undefined,
+          scope: tokens.scope,
+        },
+        this.serverUrl,
+      ),
+    )
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
@@ -177,12 +183,17 @@ export class McpOAuthProvider implements OAuthClientProvider {
       if (type === "all" || type === "tokens") this.pendingTokens = undefined
       return
     }
-    await Effect.runPromise(
-      this.auth.invalidateCredentials(this.mcpName, type, {
-        clientInfo: this.observedClientInfo,
-        tokens: this.observedTokens,
-      }),
-    )
+    switch (type) {
+      case "all":
+        await Effect.runPromise(this.auth.remove(this.mcpName))
+        break
+      case "client":
+        await Effect.runPromise(this.auth.clearClientInfo(this.mcpName))
+        break
+      case "tokens":
+        await Effect.runPromise(this.auth.clearTokens(this.mcpName))
+        break
+    }
   }
 
   async commit(): Promise<void> {
