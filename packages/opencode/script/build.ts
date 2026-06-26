@@ -141,6 +141,15 @@ const targets = (
 
 await $`rm -rf dist`
 
+const localParserWorker = "./.build/parser.worker.js"
+const installedParserWorker = fs.realpathSync(
+  fs.existsSync(path.resolve(dir, "node_modules/@opentui/core/parser.worker.js"))
+    ? path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
+    : path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js"),
+)
+await fs.promises.mkdir(path.dirname(path.resolve(dir, localParserWorker)), { recursive: true })
+await fs.promises.copyFile(installedParserWorker, path.resolve(dir, localParserWorker))
+
 const binaries: Record<string, string> = {}
 if (!skipInstall) {
   // --no-save keeps Bun 1.4 from rewriting bun.lock while adding cross-platform native packages.
@@ -162,14 +171,10 @@ for (const item of targets) {
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
 
-  const localPath = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
-  const rootPath = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")
-  const parserWorker = fs.realpathSync(fs.existsSync(localPath) ? localPath : rootPath)
   const workerPath = "./src/cli/tui/worker.ts"
 
   // Use platform-specific bunfs root path based on target OS
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
-  const workerRelativePath = path.relative(dir, parserWorker).replaceAll("\\", "/")
 
   await Bun.build({
     conditions: ["bun", "node"],
@@ -197,14 +202,20 @@ for (const item of targets) {
       windows: {},
     },
     files: embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {},
-    entrypoints: ["./src/index.ts", parserWorker, workerPath, ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : [])],
+    entrypoints: [
+      "./src/index.ts",
+      localParserWorker,
+      workerPath,
+      ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
+    ],
     define: {
       FFF_LIBC: JSON.stringify(item.abi === "musl" ? "musl" : "gnu"),
       OPENCODE_VERSION: `'${Script.version}'`,
       OPENCODE_MODELS_DEV: generated.modelsData,
       // Bun 1.4 canary regressed raw define strings that worked in Bun 1.3, so these must be JSON-encoded.
       // https://github.com/oven-sh/bun/issues/32686
-      OTUI_TREE_SITTER_WORKER_PATH: JSON.stringify(bunfsRoot + workerRelativePath),
+      // Bun 1.4 renames embedded ../ paths: https://github.com/oven-sh/bun/issues/32728
+      OTUI_TREE_SITTER_WORKER_PATH: JSON.stringify(bunfsRoot + localParserWorker.slice(2)),
       OPENCODE_WORKER_PATH: JSON.stringify(workerPath),
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",

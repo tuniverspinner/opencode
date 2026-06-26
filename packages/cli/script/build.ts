@@ -57,9 +57,14 @@ const targets = (
 // --no-save keeps Bun 1.4 from rewriting bun.lock while adding cross-platform native packages.
 if (!skipInstall) await $`bun install --no-save --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
 
-const localParserWorker = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
-const rootParserWorker = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")
-const parserWorker = fs.realpathSync(fs.existsSync(localParserWorker) ? localParserWorker : rootParserWorker)
+const localParserWorker = "./.build/parser.worker.js"
+const installedParserWorker = fs.realpathSync(
+  fs.existsSync(path.resolve(dir, "node_modules/@opentui/core/parser.worker.js"))
+    ? path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
+    : path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js"),
+)
+await fs.promises.mkdir(path.dirname(path.resolve(dir, localParserWorker)), { recursive: true })
+await fs.promises.copyFile(installedParserWorker, path.resolve(dir, localParserWorker))
 
 for (const item of targets) {
   const target = [
@@ -74,7 +79,7 @@ for (const item of targets) {
   const name = target.replace(binary, "cli")
   console.log(`building ${name}`)
   const result = await Bun.build({
-    entrypoints: ["./src/index.ts", parserWorker],
+    entrypoints: ["./src/index.ts", localParserWorker],
     tsconfig: "./tsconfig.json",
     plugins: [plugin],
     external: ["node-gyp"],
@@ -107,9 +112,7 @@ for (const item of targets) {
       // FFF_LIBC selects the fff native lib variant: "musl" or "gnu".
       FFF_LIBC: item.os === "linux" ? `'${item.abi ?? "gnu"}'` : "undefined",
       OTUI_TREE_SITTER_WORKER_PATH:
-        (item.os === "win32" ? '"B:/~BUN/root/' : '"/$bunfs/root/') +
-        path.relative(dir, parserWorker).replaceAll("\\", "/") +
-        '"',
+        (item.os === "win32" ? '"B:/~BUN/root/' : '"/$bunfs/root/') + localParserWorker.slice(2) + '"',
       ...(item.os === "linux" ? { "process.env.OPENTUI_LIBC": JSON.stringify(item.abi ?? "glibc") } : {}),
     },
   })
