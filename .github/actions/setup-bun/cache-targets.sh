@@ -31,7 +31,7 @@ for target in "${targets[@]}"; do
   rm -rf "$temp/bun-${target}" "$temp/bun.zip"
 done
 
-# Bun's canary release has a stale Darwin baseline asset, and no current Mac needs it.
+# Bun's canary Darwin baseline asset is stale, so alias the current x64 runtime instead.
 if [[ "$selector" == "canary" ]]; then
   cp "$cache/bun-darwin-x64-v${version}" "$cache/bun-darwin-x64-baseline-v${version}"
 fi

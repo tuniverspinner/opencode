@@ -13,6 +13,7 @@ if (!expectedBunVersion) {
 // relax version requirement
 const expectedBunVersionRange = `^${expectedBunVersion}`
 
+// CI selects its channel-specific Bun before these scripts load; this guard is for local tooling.
 if (process.env.GITHUB_ACTIONS !== "true" && !semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
   throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
 }

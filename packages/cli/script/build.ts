@@ -49,6 +49,7 @@ const targets = singleFlag
     })
   : allTargets
 
+// --no-save keeps Bun 1.4 from rewriting bun.lock while adding cross-platform native packages.
 if (!skipInstall) await $`bun install --no-save --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
 
 const localParserWorker = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
