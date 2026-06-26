@@ -1,14 +1,6 @@
 name: "Setup Bun"
 description: "Resolve the channel Bun toolchain, install it, and install dependencies"
 inputs:
-  channel:
-    description: "Explicit toolchain channel (dev, beta, or prod)"
-    required: false
-    default: ""
-  revision:
-    description: "Expected exact Bun revision for cross-job consistency"
-    required: false
-    default: ""
   cross-compile:
     description: "Pre-cache matching Bun runtimes for all compile targets"
     required: false
@@ -17,17 +9,6 @@ inputs:
     description: "Additional flags to pass to 'bun install'"
     required: false
     default: ""
-outputs:
-  channel:
-    value: ${{ steps.resolve.outputs.channel }}
-  selector:
-    value: ${{ steps.resolve.outputs.selector }}
-  version:
-    value: ${{ steps.metadata.outputs.version }}
-  revision:
-    value: ${{ steps.metadata.outputs.revision }}
-  compile-version:
-    value: ${{ steps.metadata.outputs.compile-version }}
 runs:
   using: "composite"
   steps:
@@ -35,9 +16,9 @@ runs:
       id: resolve
       shell: bash
       env:
-        INPUT_CHANNEL: ${{ inputs.channel }}
         GITHUB_BASE_REF: ${{ github.base_ref }}
         GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_WORKFLOW: ${{ github.workflow }}
       run: node "$GITHUB_ACTION_PATH/resolve.mjs"
 
     - name: Resolve Bun download URL
@@ -72,9 +53,7 @@ runs:
       id: metadata
       shell: bash
       env:
-        CHANNEL: ${{ steps.resolve.outputs.channel }}
         SELECTOR: ${{ steps.resolve.outputs.selector }}
-        EXPECTED_REVISION: ${{ inputs.revision }}
       run: |
         VERSION=$(bun --version)
         REVISION=$(bun --revision)
@@ -85,13 +64,6 @@ runs:
           echo "Expected Bun $SELECTOR, got $REVISION" >&2
           exit 1
         fi
-        if [ -n "$EXPECTED_REVISION" ] && [ "$REVISION" != "$EXPECTED_REVISION" ]; then
-          echo "Expected Bun revision $EXPECTED_REVISION, got $REVISION" >&2
-          exit 1
-        fi
-        echo "OPENCODE_BUN_CHANNEL=$CHANNEL" >> "$GITHUB_ENV"
-        echo "OPENCODE_BUN_VERSION=$VERSION" >> "$GITHUB_ENV"
-        echo "OPENCODE_BUN_REVISION=$REVISION" >> "$GITHUB_ENV"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
         echo "compile-version=$COMPILE_VERSION" >> "$GITHUB_OUTPUT"
