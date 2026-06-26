@@ -190,6 +190,7 @@ for (const item of targets) {
       FFF_LIBC: JSON.stringify(item.abi === "musl" ? "musl" : "gnu"),
       OPENCODE_VERSION: `'${Script.version}'`,
       OPENCODE_MODELS_DEV: generated.modelsData,
+      // Bun 1.4 requires define strings to be JSON-encoded: https://github.com/oven-sh/bun/issues/32686
       OTUI_TREE_SITTER_WORKER_PATH: JSON.stringify(bunfsRoot + workerRelativePath),
       OPENCODE_WORKER_PATH: JSON.stringify(workerPath),
       OPENCODE_CHANNEL: `'${Script.channel}'`,
