@@ -519,7 +519,6 @@ describe("OpenAI Responses route", () => {
           },
           {
             type: "reasoning",
-            id: "rs_continuation_1",
             encrypted_content: "encrypted-continuation-state",
             summary: [{ type: "summary_text", text: "I inspected the previous turn." }],
           },
@@ -925,12 +924,12 @@ describe("OpenAI Responses route", () => {
           dynamicResponse((input) =>
             Effect.gen(function* () {
               const web = yield* HttpClientRequest.toWeb(input.request).pipe(Effect.orDie)
-              expect(yield* Effect.promise(() => web.json())).toMatchObject({
+              const body = yield* Effect.promise(() => web.json())
+              expect(body).toMatchObject({
                 input: [
                   { role: "user", content: [{ type: "input_text", text: "What changed?" }] },
                   {
                     type: "reasoning",
-                    id: "rs_1",
                     encrypted_content: "encrypted-state",
                     summary: [{ type: "summary_text", text: "Checked the previous diff." }],
                   },
@@ -938,6 +937,7 @@ describe("OpenAI Responses route", () => {
                   { role: "user", content: [{ type: "input_text", text: "Summarize it." }] },
                 ],
               })
+              expect(body.input[1]).not.toHaveProperty("id")
               return input.respond(
                 sseEvents(
                   { type: "response.output_text.delta", item_id: "msg_1", delta: "Parser now round-trips reasoning." },
@@ -984,7 +984,6 @@ describe("OpenAI Responses route", () => {
         { role: "assistant", content: [{ type: "output_text", text: "Before." }] },
         {
           type: "reasoning",
-          id: "rs_1",
           encrypted_content: "encrypted-state",
           summary: [{ type: "summary_text", text: "Checked order." }],
         },
@@ -1078,7 +1077,6 @@ describe("OpenAI Responses route", () => {
       expect(prepared.body.input).toEqual([
         {
           type: "reasoning",
-          id: "rs_1",
           encrypted_content: "encrypted-state",
           summary: [
             { type: "summary_text", text: "First" },
