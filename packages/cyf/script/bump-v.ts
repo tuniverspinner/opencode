@@ -3,8 +3,9 @@
 // bump-v.ts — Version in, build out. All versioning handled inside.
 //
 // Usage:
-//   bun run script/bump-v.ts 0.0.16--descriptor          # tag + build + verify
-//   bun run script/bump-v.ts 0.0.16--descriptor --no-tag  # build without git tag
+//   bun run script/bump-v.ts 0.0.16--descriptor                        # tag + build + install as cyf
+//   bun run script/bump-v.ts 0.0.16--descriptor --no-tag                # build without git tag
+//   bun run script/bump-v.ts 0.0.16--descriptor --no-tag --name cyfd    # build + install as cyfd (dev)
 //
 // Build flags pass through:
 //   bun run script/bump-v.ts 0.0.16--descriptor --single --skip-embed-web-ui
@@ -12,6 +13,9 @@
 // Defaults to --single --skip-embed-web-ui if no build flags given.
 
 import { $, argv } from "bun"
+import path from "path"
+import fs from "fs"
+import { homedir } from "os"
 
 const args = argv.slice(2)
 
@@ -19,11 +23,16 @@ if (args.length === 0 || args[0] === "-h" || args[0] === "--help") {
   console.log(`bump-v — version in, build out
 
 Usage:
-  bun run script/bump-v.ts <version> [build flags...]
+  bun run script/bump-v.ts <version> [flags...] [build flags...]
+
+Flags:
+  --no-tag          Build without git tag
+  --name <name>     Install binary as <name> (default: cyf)
 
 Examples:
   bun run script/bump-v.ts 0.0.16--return-to-beauty
   bun run script/bump-v.ts 0.0.16--return-to-beauty --no-tag
+  bun run script/bump-v.ts 0.0.20--inhbricg --no-tag --name cyfd
   bun run script/bump-v.ts 0.0.17--island-arch --single
 
 Version format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH--descriptor
@@ -47,6 +56,18 @@ if (version.startsWith("0.0.0-")) {
   console.error(`✗ Refusing to bump to a fingerprint version: ${version}`)
   console.error(`  Use a real version. Fingerprints are for ad-hoc dev only.`)
   process.exit(1)
+}
+
+// Parse --name flag
+let binaryName = "cyf"
+const nameIdx = buildArgs.indexOf("--name")
+if (nameIdx !== -1) {
+  binaryName = buildArgs[nameIdx + 1]
+  if (!binaryName || binaryName.startsWith("--")) {
+    console.error(`✗ --name requires a value`)
+    process.exit(1)
+  }
+  buildArgs.splice(nameIdx, 2)
 }
 
 const tagFlag = buildArgs.includes("--no-tag")
@@ -75,14 +96,30 @@ if (!tagFlag) {
 console.log(`Building ${version}...`)
 await $`CYF_VERSION=${version} bun run script/build.ts ${finalBuildArgs}`.cwd(process.cwd())
 
-// 3. Verify
-const result = await $`cyf --version`.text()
+// 3. Install as real file to ~/.local/bin/{binaryName}
+const osName = process.platform === "win32" ? "windows" : process.platform
+const distBinary = path.resolve(process.cwd(), `dist/cyf-${osName}-${process.arch}/bin/cyf`)
+const installDir = path.join(homedir(), ".local", "bin")
+const installPath = path.join(installDir, binaryName)
+
+if (!fs.existsSync(distBinary)) {
+  console.error(`✗ Build output not found: ${distBinary}`)
+  process.exit(1)
+}
+
+fs.mkdirSync(installDir, { recursive: true })
+fs.rmSync(installPath, { force: true })
+fs.copyFileSync(distBinary, installPath)
+fs.chmodSync(installPath, 0o755)
+
+// 4. Verify against the installed binary
+const result = await $`${installPath} --version`.text()
 const installed = result.trim()
 if (installed === version) {
-  console.log(`✓ Installed: ${installed}`)
+  console.log(`✓ Installed: ${binaryName} → ${installed}`)
 } else {
   console.error(`✗ Version mismatch: expected ${version}, got ${installed}`)
   process.exit(1)
 }
 
-console.log(`Done. ${version} is live.`)
+console.log(`Done. ${binaryName} ${version} is live.`)

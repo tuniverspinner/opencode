@@ -17,11 +17,13 @@ Always use the bump-v script — never invoke `build.ts` directly with manual `C
 
 ```sh
 bun run script/bump-v.ts 0.0.16--descriptor
-# or without git tag:
+# without git tag:
 bun run script/bump-v.ts 0.0.16--descriptor --no-tag
+# install as cyfd (dev binary, coexists with stable cyf):
+bun run script/bump-v.ts 0.0.16--descriptor --no-tag --name cyfd
 ```
 
-The script validates the version, tags (optional), builds, and verifies. Defaults to `--single --skip-embed-web-ui` for local dev. Pass build flags to override.
+The script validates the version, tags (optional), builds, installs as a real file to `~/.local/bin/{name}`, and verifies. Defaults to `--single --skip-embed-web-ui` for local dev. Pass build flags to override.
 
 Version format: `MAJOR.MINOR.PATCH--descriptor`. Descriptors are short, timeless labels. Never use dates in slugs. Never produce `0.0.0-` fingerprint versions — they are build garbage, not releases.
 
