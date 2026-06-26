@@ -44,6 +44,14 @@ test("refreshes resources into reactive getters", async () => {
           location: { directory },
         },
       })
+    if (url.pathname === "/api/session/ses_test/message")
+      return json({
+        data: [
+          { id: "msg_second", type: "user", text: "Second", time: { created: 2 } },
+          { id: "msg_first", type: "user", text: "First", time: { created: 1 } },
+        ],
+        cursor: {},
+      })
     if (url.pathname === "/api/agent")
       return json({
         location,
@@ -82,9 +90,12 @@ test("refreshes resources into reactive getters", async () => {
     expect(data.location.agent.list(location)).toBeUndefined()
 
     await data.session.refresh("ses_test")
+    await data.session.message.refresh("ses_test")
     await data.location.agent.refresh()
 
     expect(data.session.get("ses_test")?.title).toBe("Test session")
+    expect(data.session.message.ids("ses_test")).toEqual(["msg_first", "msg_second"])
+    expect(data.session.message.get("ses_test", "msg_second")?.id).toBe("msg_second")
     expect(data.location.default()).toEqual({ directory, workspaceID: undefined })
     expect(data.location.agent.list(location)?.map((agent) => agent.id)).toEqual(["build"])
   } finally {
@@ -530,7 +541,7 @@ test("settles pending tools when a live failure arrives", async () => {
     })
 
     await wait(() => {
-      const assistant = sync.session.message.list("session-1")?.[0]
+      const assistant = sync.session.message.get("session-1", "msg_explicit_assistant_9")
       return (
         assistant?.type === "assistant" &&
         assistant.content[0]?.type === "tool" &&
@@ -538,7 +549,7 @@ test("settles pending tools when a live failure arrives", async () => {
       )
     })
 
-    const assistant = sync.session.message.list("session-1")?.[0]
+    const assistant = sync.session.message.get("session-1", "msg_explicit_assistant_9")
     expect(assistant?.type).toBe("assistant")
     if (assistant?.type !== "assistant") return
     expect(assistant.id).toBe("msg_explicit_assistant_9")
@@ -556,10 +567,10 @@ test("settles pending tools when a live failure arrives", async () => {
       metadata: { fake: { call: true } },
       resultMetadata: { fake: { result: true } },
     })
-    expect((sync.session.message.list("session-1") ?? []).map((message) => message.type)).toEqual([
-      "assistant",
-      "model-switched",
+    expect(sync.session.message.list("session-1").map((message) => message.type)).toEqual([
       "agent-switched",
+      "model-switched",
+      "assistant",
     ])
   } finally {
     app.renderer.destroy()
@@ -629,6 +640,10 @@ test("renders admitted prompts only after they become model-visible", async () =
     expect(message?.type).toBe("user")
     if (message?.type !== "user") return
     expect(message).toMatchObject({ id: "msg_user_1", text: "hello" })
+    expect(sync.session.message.ids("session-1")).toEqual(["msg_user_1"])
+    expect(sync.session.message.ids("missing")).toEqual([])
+    expect(sync.session.message.get("session-1", "msg_user_1")).toBe(message)
+    expect(sync.session.message.get("session-1", "missing")).toBeUndefined()
     expect(received).toHaveLength(3)
   } finally {
     app.renderer.destroy()

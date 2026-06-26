@@ -9,7 +9,7 @@ export function DialogMessage(props: { messageID: string; sessionID: string; set
   const clipboard = useClipboard()
   const toast = useToast()
   const message = createMemo(() =>
-    data.session.message.list(props.sessionID)?.find((message) => message.id === props.messageID),
+    data.session.message.get(props.sessionID, props.messageID),
   )
 
   return (

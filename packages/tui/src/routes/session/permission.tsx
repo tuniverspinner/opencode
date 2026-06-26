@@ -18,7 +18,7 @@ import { usePathFormatter } from "../../context/path-format"
 
 type PermissionStage = "permission" | "always" | "reject"
 
-function EditBody(props: { request: PermissionV2Request }) {
+function EditBody(props: { request: PermissionV2Request; patch?: string }) {
   const themeState = useTheme()
   const theme = themeState.theme
   const syntax = themeState.syntax
@@ -77,9 +77,36 @@ function EditBody(props: { request: PermissionV2Request }) {
         </scrollbox>
       </Show>
       <Show when={!diff()}>
-        <box paddingLeft={1}>
-          <text fg={theme.textMuted}>No diff provided</text>
-        </box>
+        <Show
+          when={props.patch}
+          fallback={
+            <box paddingLeft={1}>
+              <text fg={theme.textMuted}>No diff provided</text>
+            </box>
+          }
+        >
+          {(patch) => (
+            <scrollbox
+              height="100%"
+              scrollAcceleration={scrollAcceleration()}
+              verticalScrollbarOptions={{
+                trackOptions: {
+                  backgroundColor: theme.background,
+                  foregroundColor: theme.borderActive,
+                },
+              }}
+            >
+              <code
+                filetype="diff"
+                drawUnstyledText={false}
+                streaming={true}
+                syntaxStyle={syntax()}
+                content={patch()}
+                fg={theme.textMuted}
+              />
+            </scrollbox>
+          )}
+        </Show>
       </Show>
     </box>
   )
@@ -118,9 +145,7 @@ export function PermissionPrompt(props: { request: PermissionV2Request; director
   const input = createMemo(() => {
     const tool = props.request.source
     if (!tool) return {}
-    const message = data.session
-      .message.list(props.request.sessionID)
-      ?.find((message) => message.type === "assistant" && message.id === tool.messageID)
+    const message = data.session.message.get(props.request.sessionID, tool.messageID)
     if (message?.type !== "assistant") return {}
     const part = message.content.find((part) => part.type === "tool" && part.id === tool.callID)
     if (part?.type === "tool" && part.state.status !== "pending") return part.state.input
@@ -192,10 +217,11 @@ export function PermissionPrompt(props: { request: PermissionV2Request; director
 
             if (permission === "edit") {
               const filepath = props.request.resources[0] ?? ""
+              const patch = typeof data.patchText === "string" ? data.patchText : undefined
               return {
                 icon: "→",
                 title: `Edit ${pathFormatter.format(filepath)}`,
-                body: <EditBody request={props.request} />,
+                body: <EditBody request={props.request} patch={patch} />,
               }
             }
 

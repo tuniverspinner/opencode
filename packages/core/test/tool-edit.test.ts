@@ -125,10 +125,6 @@ describe("EditTool", () => {
                   value: "Edited file successfully: hello.txt\nReplacements: 1\n```diff\n-before\n+after\n```",
                 })
                 expect(settled.output?.structured).toEqual({
-                  operation: "write",
-                  target: yield* Effect.promise(() => fs.realpath(target)),
-                  resource: "hello.txt",
-                  existed: true,
                   replacements: 1,
                   files: [
                     {

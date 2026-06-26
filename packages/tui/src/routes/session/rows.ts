@@ -11,20 +11,44 @@ export type PartRef = {
 export type SessionRow =
   | { type: "message"; messageID: string }
   | { type: "part"; ref: PartRef }
-  | { type: "group"; kind: "exploration"; refs: PartRef[]; completed: boolean }
+  | {
+      type: "group"
+      kind: "exploration"
+      refs: PartRef[]
+      pending: PartRef[]
+      completed: boolean
+    }
   | { type: "assistant-footer"; messageID: string }
 
 export function createSessionRows(sessionID: Accessor<string>) {
   const data = useData()
   const [rows, setRows] = createStore<SessionRow[]>([])
 
+  createEffect(() => {
+    const pending = new Set(
+      (data.session.permission.list(sessionID()) ?? []).flatMap((request) =>
+        request.source?.type === "tool" ? [request.source.callID] : [],
+      ),
+    )
+    setRows(
+      produce((draft) => {
+        draft.forEach((row) => {
+          if (row.type !== "group") return
+          const refs = [...row.refs, ...row.pending]
+          row.refs = refs.filter((ref) => !pending.has(ref.partID))
+          row.pending = refs.filter((ref) => pending.has(ref.partID))
+        })
+      }),
+    )
+  })
+
   createEffect(
     on(sessionID, (id) => {
-      setRows(reconcile(reduceSessionRows(data.session.message.list(id) ?? [])))
+      setRows(reconcile(reduceSessionRows(data.session.message.list(id))))
       void data.session.message.refresh(id).then(
         () => {
           if (sessionID() !== id) return
-          setRows(reconcile(reduceSessionRows(data.session.message.list(id) ?? [])))
+          setRows(reconcile(reduceSessionRows(data.session.message.list(id))))
         },
         () => undefined,
       )
@@ -51,7 +75,13 @@ export function createSessionRows(sessionID: Accessor<string>) {
             return
           }
           completePrevious(draft)
-          draft.push({ type: "group", kind: "exploration", refs: [ref], completed: false })
+          draft.push({
+            type: "group",
+            kind: "exploration",
+            refs: [ref],
+            pending: [],
+            completed: false,
+          })
           return
         }
         completePrevious(draft)
@@ -113,7 +143,7 @@ export function createSessionRows(sessionID: Accessor<string>) {
 }
 
 export function reduceSessionRows(messages: SessionMessage[]) {
-  return messages.toReversed().reduce<SessionRow[]>((rows, message) => {
+  return messages.reduce<SessionRow[]>((rows, message) => {
     if (message.type !== "assistant") {
       rows.push({ type: "message", messageID: message.id })
       return rows
@@ -137,7 +167,7 @@ function append(rows: SessionRow[], ref: PartRef, part: SessionMessageAssistant[
         return
       }
       completePrevious(rows)
-      rows.push({ type: "group", kind: "exploration", refs: [ref], completed: false })
+      rows.push({ type: "group", kind: "exploration", refs: [ref], pending: [], completed: false })
       return
     }
   }
@@ -158,6 +188,8 @@ function hasPart(rows: SessionRow[], ref: PartRef) {
   return rows.some((row) => {
     if (row.type === "part") return row.ref.messageID === ref.messageID && row.ref.partID === ref.partID
     if (row.type !== "group") return false
-    return row.refs.some((item) => item.messageID === ref.messageID && item.partID === ref.partID)
+    return [...row.refs, ...row.pending].some(
+      (item) => item.messageID === ref.messageID && item.partID === ref.partID,
+    )
   })
 }

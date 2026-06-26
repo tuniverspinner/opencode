@@ -32,12 +32,8 @@ export const Input = Schema.Struct({
 })
 
 export const Output = Schema.Struct({
-  operation: Schema.Literal("write"),
-  target: Schema.String,
-  resource: Schema.String,
-  existed: Schema.Boolean,
-  replacements: Schema.Number,
   files: Schema.Array(FileDiff.Info),
+  replacements: Schema.Number,
 })
 export type Output = typeof Output.Type
 
@@ -74,7 +70,7 @@ const previewLines = (value: string, prefix: "+" | "-") => {
 
 export const toModelOutput = (output: Output, oldString: string, newString: string) =>
   [
-    `Edited file successfully: ${output.resource}`,
+    `Edited file successfully: ${output.files[0]?.file}`,
     `Replacements: ${output.replacements}`,
     "```diff",
     ...previewLines(oldString, "-"),
@@ -198,16 +194,15 @@ export const layer = Layer.effectDiscard(
                   }),
                 )
                 return {
-                  ...result,
-                  replacements,
                   files: [
                     {
                       file: result.resource,
                       patch: createTwoFilesPatch(result.resource, result.resource, source.text, replaced),
-                      status: "modified",
+                      status: "modified" as const,
                       ...counts,
                     },
                   ],
+                  replacements,
                 } satisfies Output
               })
             },

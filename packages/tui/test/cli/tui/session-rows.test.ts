@@ -4,16 +4,16 @@ import { reduceSessionRows } from "../../../src/routes/session/rows"
 
 test("groups exploration parts across assistant messages until a delimiter", () => {
   const messages: SessionMessage[] = [
-    assistant("assistant-2", [
-      { type: "tool", id: "grep-1", name: "grep", state: pending(), time: { created: 5 } },
-      { type: "text", id: "text-2", text: "Done" },
-    ]),
+    { type: "user", id: "user-1", text: "Explore", time: { created: 0 } },
     assistant("assistant-1", [
       { type: "text", id: "text-1", text: "Looking" },
       { type: "tool", id: "read-1", name: "read", state: pending(), time: { created: 2 } },
       { type: "tool", id: "glob-1", name: "glob", state: pending(), time: { created: 3 } },
     ]),
-    { type: "user", id: "user-1", text: "Explore", time: { created: 0 } },
+    assistant("assistant-2", [
+      { type: "tool", id: "grep-1", name: "grep", state: pending(), time: { created: 5 } },
+      { type: "text", id: "text-2", text: "Done" },
+    ]),
   ]
 
   expect(reduceSessionRows(messages)).toEqual([
@@ -22,6 +22,7 @@ test("groups exploration parts across assistant messages until a delimiter", () 
     {
       type: "group",
       kind: "exploration",
+      pending: [],
       completed: true,
       refs: [
         { messageID: "assistant-1", partID: "read-1" },
@@ -46,6 +47,7 @@ test("keeps non-exploration tools as individual part rows", () => {
     {
       type: "group",
       kind: "exploration",
+      pending: [],
       completed: true,
       refs: [{ messageID: "assistant-1", partID: "read-1" }],
     },
@@ -53,6 +55,7 @@ test("keeps non-exploration tools as individual part rows", () => {
     {
       type: "group",
       kind: "exploration",
+      pending: [],
       completed: false,
       refs: [{ messageID: "assistant-1", partID: "grep-1" }],
     },
@@ -61,13 +64,13 @@ test("keeps non-exploration tools as individual part rows", () => {
 
 test("groups across empty assistant reasoning parts", () => {
   const messages: SessionMessage[] = [
-    assistant("assistant-2", [
-      { type: "reasoning", id: "reasoning-2", text: "" },
-      { type: "tool", id: "grep-1", name: "grep", state: pending(), time: { created: 3 } },
-    ]),
     assistant("assistant-1", [
       { type: "reasoning", id: "reasoning-1", text: "Looking" },
       { type: "tool", id: "read-1", name: "read", state: pending(), time: { created: 2 } },
+    ]),
+    assistant("assistant-2", [
+      { type: "reasoning", id: "reasoning-2", text: "" },
+      { type: "tool", id: "grep-1", name: "grep", state: pending(), time: { created: 3 } },
     ]),
   ]
 
@@ -76,6 +79,7 @@ test("groups across empty assistant reasoning parts", () => {
     {
       type: "group",
       kind: "exploration",
+      pending: [],
       completed: false,
       refs: [
         { messageID: "assistant-1", partID: "read-1" },
