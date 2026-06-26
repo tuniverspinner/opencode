@@ -319,20 +319,12 @@ export function Session() {
 
   const sessionCommandList = createMemo(() => [
     {
-      title: session()?.share?.url ? "Copy share link" : "Share session",
+      title: "Share session",
       value: "session.share",
       suggested: route.type === "session",
       category: "Session",
       slash: { name: "share" },
-      run: () => {
-        const url = session()?.share?.url
-        if (!url) return unavailable("Sharing")
-        void clipboard
-          .write?.(url)
-          .then(() => toast.show({ message: "Share URL copied to clipboard!", variant: "success" }))
-          .catch(() => toast.show({ message: "Failed to copy URL to clipboard", variant: "error" }))
-        dialog.clear()
-      },
+      run: () => unavailable("Sharing"),
     },
     {
       title: "Rename session",
@@ -372,7 +364,7 @@ export function Session() {
       title: "Unshare session",
       value: "session.unshare",
       category: "Session",
-      enabled: !!session()?.share?.url,
+      enabled: false,
       slash: { name: "unshare" },
       run: () => unavailable("Unsharing"),
     },
