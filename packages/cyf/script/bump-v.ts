@@ -112,6 +112,11 @@ fs.rmSync(installPath, { force: true })
 fs.copyFileSync(distBinary, installPath)
 fs.chmodSync(installPath, 0o755)
 
+// Re-sign on macOS (arm64 requires valid signature after copy)
+if (process.platform === "darwin") {
+  await $`codesign --force --sign - ${installPath}`.quiet()
+}
+
 // 4. Verify against the installed binary
 const result = await $`${installPath} --version`.text()
 const installed = result.trim()
