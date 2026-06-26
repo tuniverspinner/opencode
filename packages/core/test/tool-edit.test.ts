@@ -130,6 +130,15 @@ describe("EditTool", () => {
                   resource: "hello.txt",
                   existed: true,
                   replacements: 1,
+                  files: [
+                    {
+                      file: "hello.txt",
+                      status: "modified",
+                      additions: 1,
+                      deletions: 1,
+                      patch: expect.stringContaining("-before\n+after"),
+                    },
+                  ],
                 })
                 expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("after\nrest\n")
                 expect(assertions).toMatchObject([{ sessionID, action: "edit", resources: ["hello.txt"], save: ["*"] }])

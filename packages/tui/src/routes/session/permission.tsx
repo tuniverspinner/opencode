@@ -264,8 +264,6 @@ export function PermissionPrompt(props: { request: PermissionV2Request; director
             if (permission === "bash") {
               const command = typeof data.command === "string" ? data.command : ""
               return {
-                icon: "#",
-                title: "Shell command",
                 body: (
                   <Show when={command}>
                     <box paddingLeft={1}>
@@ -381,12 +379,14 @@ export function PermissionPrompt(props: { request: PermissionV2Request; director
                 <text fg={theme.warning}>{"△"}</text>
                 <text fg={theme.text}>Permission required</text>
               </box>
-              <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
-                <text fg={theme.textMuted} flexShrink={0}>
-                  {current.icon}
-                </text>
-                <text fg={theme.text}>{current.title}</text>
-              </box>
+              <Show when={current.title}>
+                <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
+                  <text fg={theme.textMuted} flexShrink={0}>
+                    {current.icon}
+                  </text>
+                  <text fg={theme.text}>{current.title}</text>
+                </box>
+              </Show>
             </box>
           )
 

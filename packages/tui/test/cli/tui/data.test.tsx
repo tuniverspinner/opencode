@@ -309,6 +309,134 @@ test("refreshes references after updates", async () => {
   }
 })
 
+test("adds and dismisses permission requests from live events", async () => {
+  const events = createEventSource()
+  const calls = createFetch(undefined, events)
+  let data!: ReturnType<typeof useData>
+
+  function Probe() {
+    data = useData()
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <TestTuiContexts>
+      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
+        <ProjectProvider>
+          <DataProvider>
+            <Probe />
+          </DataProvider>
+        </ProjectProvider>
+      </SDKProvider>
+    </TestTuiContexts>
+  ))
+
+  try {
+    await wait(() => data.connection.status() === "connected")
+    emitEvent(events, {
+      id: "evt_permission_asked_1",
+      type: "permission.v2.asked",
+      properties: {
+        id: "per_1",
+        sessionID: "ses_1",
+        action: "bash",
+        resources: ["bun test"],
+      },
+    })
+    emitEvent(events, {
+      id: "evt_permission_asked_2",
+      type: "permission.v2.asked",
+      properties: {
+        id: "per_2",
+        sessionID: "ses_1",
+        action: "read",
+        resources: [".env"],
+      },
+    })
+    await wait(() => data.session.permission.list("ses_1")?.length === 2)
+
+    emitEvent(events, {
+      id: "evt_permission_replied_1",
+      type: "permission.v2.replied",
+      properties: { sessionID: "ses_1", requestID: "per_1", reply: "once" },
+    })
+    await wait(() => data.session.permission.list("ses_1")?.length === 1)
+    expect(data.session.permission.list("ses_1")?.[0]?.id).toBe("per_2")
+
+    emitEvent(events, {
+      id: "evt_permission_replied_2",
+      type: "permission.v2.replied",
+      properties: { sessionID: "ses_1", requestID: "per_2", reply: "reject" },
+    })
+    await wait(() => data.session.permission.list("ses_1")?.length === 0)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("adds and dismisses question requests from live events", async () => {
+  const events = createEventSource()
+  const calls = createFetch(undefined, events)
+  let data!: ReturnType<typeof useData>
+
+  function Probe() {
+    data = useData()
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <TestTuiContexts>
+      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
+        <ProjectProvider>
+          <DataProvider>
+            <Probe />
+          </DataProvider>
+        </ProjectProvider>
+      </SDKProvider>
+    </TestTuiContexts>
+  ))
+
+  try {
+    await wait(() => data.connection.status() === "connected")
+    emitEvent(events, {
+      id: "evt_question_asked_1",
+      type: "question.v2.asked",
+      properties: {
+        id: "que_1",
+        sessionID: "ses_1",
+        questions: [{ question: "Which option?", header: "Option", options: [], multiple: false }],
+      },
+    })
+    emitEvent(events, {
+      id: "evt_question_asked_2",
+      type: "question.v2.asked",
+      properties: {
+        id: "que_2",
+        sessionID: "ses_1",
+        questions: [{ question: "Which environment?", header: "Environment", options: [], multiple: false }],
+      },
+    })
+    await wait(() => data.session.question.list("ses_1")?.length === 2)
+
+    emitEvent(events, {
+      id: "evt_question_replied_1",
+      type: "question.v2.replied",
+      properties: { sessionID: "ses_1", requestID: "que_1", answers: [["First"]] },
+    })
+    await wait(() => data.session.question.list("ses_1")?.length === 1)
+    expect(data.session.question.list("ses_1")?.[0]?.id).toBe("que_2")
+
+    emitEvent(events, {
+      id: "evt_question_rejected_2",
+      type: "question.v2.rejected",
+      properties: { sessionID: "ses_1", requestID: "que_2" },
+    })
+    await wait(() => data.session.question.list("ses_1")?.length === 0)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("settles pending tools when a live failure arrives", async () => {
   const events = createEventSource()
   const calls = createFetch(undefined, events)
@@ -467,6 +595,8 @@ test("renders admitted prompts only after they become model-visible", async () =
 
   try {
     await mounted
+    const received: string[] = []
+    const unsubscribe = sync.listen((event) => received.push(event.name))
     emitEvent(events, {
       id: "evt_admitted_1",
       type: "session.next.prompt.admitted",
@@ -493,10 +623,13 @@ test("renders admitted prompts only after they become model-visible", async () =
     })
 
     await wait(() => sync.session.message.list("session-1")?.length === 1)
+    expect(received.slice(-2)).toEqual(["session.next.prompt.admitted", "session.next.prompted"])
+    unsubscribe()
     const message = sync.session.message.list("session-1")?.[0]
     expect(message?.type).toBe("user")
     if (message?.type !== "user") return
     expect(message).toMatchObject({ id: "msg_user_1", text: "hello" })
+    expect(received).toHaveLength(3)
   } finally {
     app.renderer.destroy()
   }

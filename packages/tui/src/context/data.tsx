@@ -22,8 +22,12 @@ import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"
 import { createSignal, onCleanup, onMount } from "solid-js"
+import { createGlobalEmitter } from "@solid-primitives/event-bus"
 
 export type DataConnectionStatus = "connecting" | "connected" | "reconnecting"
+
+export type DataEvent = V2Event
+type DataEventMap = { [T in DataEvent["type"]]: Extract<DataEvent, { type: T }> }
 
 type LocationData = {
   agent?: AgentV2Info[]
@@ -82,6 +86,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     })
 
     const sdk = useSDK()
+    const events = createGlobalEmitter<DataEventMap>()
     const [defaultLocation, setDefaultLocation] = createSignal<LocationRef>({
       directory: sdk.directory ?? process.cwd(),
     })
@@ -402,6 +407,41 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
             })
           })
           break
+        case "permission.v2.asked":
+          if (store.session.permission[event.data.sessionID]?.some((request) => request.id === event.data.id)) break
+          setStore("session", "permission", event.data.sessionID, [
+            ...(store.session.permission[event.data.sessionID] ?? []),
+            event.data,
+          ])
+          break
+        case "permission.v2.replied":
+          setStore(
+            "session",
+            "permission",
+            event.data.sessionID,
+            (store.session.permission[event.data.sessionID] ?? []).filter(
+              (request) => request.id !== event.data.requestID,
+            ),
+          )
+          break
+        case "question.v2.asked":
+          if (store.session.question[event.data.sessionID]?.some((request) => request.id === event.data.id)) break
+          setStore("session", "question", event.data.sessionID, [
+            ...(store.session.question[event.data.sessionID] ?? []),
+            event.data,
+          ])
+          break
+        case "question.v2.replied":
+        case "question.v2.rejected":
+          setStore(
+            "session",
+            "question",
+            event.data.sessionID,
+            (store.session.question[event.data.sessionID] ?? []).filter(
+              (request) => request.id !== event.data.requestID,
+            ),
+          )
+          break
         case "reference.updated":
           void result.location.reference.refresh()
           break
@@ -413,9 +453,12 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           ])
           break
       }
+      events.emit(event.type, event)
     }
 
     const result = {
+      on: events.on,
+      listen: events.listen,
       connection: {
         status() {
           return store.connection.status
@@ -454,14 +497,10 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
             }
             const loaded = await load()
             const live = new Map((store.session.message[sessionID] ?? []).map((message) => [message.id, message]))
-            setStore(
-              "session",
-              "message",
-              sessionID,
-              [...loaded.map((message) => live.get(message.id) ?? message), ...live.values()]
-                .filter((message, index, messages) => messages.findIndex((item) => item.id === message.id) === index)
-                .toSorted((a, b) => b.time.created - a.time.created),
-            )
+            const messages = [...loaded.map((message) => live.get(message.id) ?? message), ...live.values()]
+              .filter((message, index, messages) => messages.findIndex((item) => item.id === message.id) === index)
+              .toSorted((a, b) => b.time.created - a.time.created)
+            setStore("session", "message", sessionID, messages)
           },
         },
         permission: {

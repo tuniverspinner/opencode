@@ -6,6 +6,10 @@ declare const OPENCODE_CLI_NAME: string | undefined
 export const Commands = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME : "opencode", {
   description: "OpenCode 2.0 preview command line interface",
   params: {
+    directory: Argument.string("directory").pipe(
+      Argument.withDescription("Directory to start OpenCode in"),
+      Argument.optional,
+    ),
     standalone: Flag.boolean("standalone").pipe(
       Flag.withDescription("Run with a private server instead of the background service"),
       Flag.withDefault(false),
