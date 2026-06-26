@@ -581,7 +581,26 @@ export type SessionsContextOutput = {
           readonly reasoning: number
           readonly cache: { readonly read: number; readonly write: number }
         }
-        readonly error?: { readonly type: "unknown"; readonly message: string }
+        readonly error?:
+          | { readonly type: "unknown"; readonly message: string }
+          | {
+              readonly type: "provider"
+              readonly category:
+                | "invalid-request"
+                | "no-route"
+                | "authentication"
+                | "rate-limit"
+                | "quota-exceeded"
+                | "content-policy"
+                | "provider-internal"
+                | "transport"
+                | "invalid-provider-output"
+                | "unknown"
+              readonly message: string
+              readonly status?: number | null
+              readonly retryable: boolean
+              readonly retryAfterMs?: number | null
+            }
       }
     | {
         readonly type: "compaction"
@@ -794,7 +813,26 @@ export type SessionsEventsOutput =
         readonly timestamp: number
         readonly sessionID: string
         readonly assistantMessageID: string
-        readonly error: { readonly type: "unknown"; readonly message: string }
+        readonly error:
+          | { readonly type: "unknown"; readonly message: string }
+          | {
+              readonly type: "provider"
+              readonly category:
+                | "invalid-request"
+                | "no-route"
+                | "authentication"
+                | "rate-limit"
+                | "quota-exceeded"
+                | "content-policy"
+                | "provider-internal"
+                | "transport"
+                | "invalid-provider-output"
+                | "unknown"
+              readonly message: string
+              readonly status?: number | undefined
+              readonly retryable: boolean
+              readonly retryAfterMs?: number | undefined
+            }
       }
     }
   | {
@@ -1198,7 +1236,26 @@ export type SessionsMessageOutput = {
           readonly reasoning: number
           readonly cache: { readonly read: number; readonly write: number }
         }
-        readonly error?: { readonly type: "unknown"; readonly message: string }
+        readonly error?:
+          | { readonly type: "unknown"; readonly message: string }
+          | {
+              readonly type: "provider"
+              readonly category:
+                | "invalid-request"
+                | "no-route"
+                | "authentication"
+                | "rate-limit"
+                | "quota-exceeded"
+                | "content-policy"
+                | "provider-internal"
+                | "transport"
+                | "invalid-provider-output"
+                | "unknown"
+              readonly message: string
+              readonly status?: number | null
+              readonly retryable: boolean
+              readonly retryAfterMs?: number | null
+            }
       }
     | {
         readonly type: "compaction"
