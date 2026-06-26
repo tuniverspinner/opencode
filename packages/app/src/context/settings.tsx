@@ -2,6 +2,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
+import type { ServerScope } from "@/utils/server-scope"
 
 export interface NotificationSettings {
   agent: boolean
@@ -43,7 +44,7 @@ export interface Settings {
   }
   keybinds: Record<string, string>
   permissions: {
-    autoApprove: boolean
+    autoApprove: Record<string, boolean>
   }
   notifications: NotificationSettings
   sounds: SoundSettings
@@ -127,7 +128,7 @@ const defaultSettings: Settings = {
   },
   keybinds: {},
   permissions: {
-    autoApprove: false,
+    autoApprove: {},
   },
   notifications: {
     agent: true,
@@ -173,6 +174,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     createEffect(() => {
       if (store.general?.followup !== "queue") return
       setStore("general", "followup", "steer")
+    })
+
+    createEffect(() => {
+      const current: unknown = store.permissions?.autoApprove
+      if (typeof current !== "boolean") return
+      setStore("permissions", "autoApprove", {})
     })
 
     return {
@@ -295,9 +302,11 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
       },
       permissions: {
-        autoApprove: withFallback(() => store.permissions?.autoApprove, defaultSettings.permissions.autoApprove),
-        setAutoApprove(value: boolean) {
-          setStore("permissions", "autoApprove", value)
+        autoApprove(scope: ServerScope) {
+          return store.permissions?.autoApprove?.[scope] ?? false
+        },
+        setAutoApprove(scope: ServerScope, value: boolean) {
+          setStore("permissions", "autoApprove", scope, value)
         },
       },
       notifications: {

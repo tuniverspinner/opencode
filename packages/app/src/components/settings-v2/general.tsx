@@ -80,9 +80,7 @@ const playDemoSound = (id: string | undefined) => {
   }, 100)
 }
 
-export const SettingsGeneralV2: Component<{
-  sessionID?: string
-}> = (props) => {
+export const SettingsGeneralV2: Component = () => {
   const theme = useTheme()
   const language = useLanguage()
   const permission = usePermission()
@@ -95,27 +93,6 @@ export const SettingsGeneralV2: Component<{
 
   const updater = useUpdaterAction()
 
-  const dir = createMemo(() => {
-    if (!props.sessionID) return undefined
-    return serverSync().session.lineage.peek(props.sessionID)?.session.directory
-  })
-  const accepting = createMemo(() => {
-    const value = dir()
-    if (!value || !props.sessionID) return false
-    return permission.isAutoAccepting(props.sessionID, value)
-  })
-
-  const toggleAccept = (checked: boolean) => {
-    const value = dir()
-    if (!value || !props.sessionID) return
-
-    if (checked) {
-      permission.enableAutoAccept(props.sessionID, value)
-      return
-    }
-
-    permission.disableAutoAccept(props.sessionID, value)
-  }
   const desktop = createMemo(() => platform.platform === "desktop")
 
   const themeOptions = createMemo<ThemeOption[]>(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
@@ -251,7 +228,7 @@ export const SettingsGeneralV2: Component<{
           description={language.t("toast.permissions.autoaccept.on.description")}
         >
           <div data-action="settings-auto-accept-permissions">
-            <Switch checked={accepting()} disabled={!dir()} onChange={toggleAccept} />
+            <Switch checked={permission.autoApprove()} onChange={permission.setAutoApprove} />
           </div>
         </SettingsRowV2>
 

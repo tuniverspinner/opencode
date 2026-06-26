@@ -5,7 +5,6 @@ let createPromptSubmit: typeof import("./submit").createPromptSubmit
 
 const createdClients: string[] = []
 const createdSessions: string[] = []
-const enabledAutoAccept: Array<{ sessionID: string; directory: string }> = []
 const optimistic: Array<{
   directory?: string
   sessionID?: string
@@ -113,14 +112,6 @@ beforeAll(async () => {
         promote(directory: string, sessionID: string) {
           promoted.push({ directory, sessionID })
         },
-      },
-    }),
-  }))
-
-  mock.module("@/context/permission", () => ({
-    usePermission: () => ({
-      enableAutoAccept(sessionID: string, directory: string) {
-        enabledAutoAccept.push({ sessionID, directory })
       },
     }),
   }))
@@ -235,7 +226,6 @@ beforeAll(async () => {
 beforeEach(() => {
   createdClients.length = 0
   createdSessions.length = 0
-  enabledAutoAccept.length = 0
   optimistic.length = 0
   optimisticSeeded.length = 0
   promoted.length = 0
@@ -256,7 +246,6 @@ describe("prompt submit worktree selection", () => {
       info: () => undefined,
       imageAttachments: () => [],
       commentCount: () => 0,
-      autoAccept: () => false,
       mode: () => "shell",
       working: () => false,
       editor: () => undefined,
@@ -288,34 +277,6 @@ describe("prompt submit worktree selection", () => {
     expect(syncedDirectories).toEqual(["/repo/worktree-a", "/repo/worktree-a", "/repo/worktree-b", "/repo/worktree-b"])
   })
 
-  test("applies auto-accept to newly created sessions", async () => {
-    const submit = createPromptSubmit({
-      prompt,
-      info: () => undefined,
-      imageAttachments: () => [],
-      commentCount: () => 0,
-      autoAccept: () => true,
-      mode: () => "shell",
-      working: () => false,
-      editor: () => undefined,
-      queueScroll: () => undefined,
-      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
-      addToHistory: () => undefined,
-      resetHistoryNavigation: () => undefined,
-      setMode: () => undefined,
-      setPopover: () => undefined,
-      newSessionWorktree: () => selected,
-      onNewSessionWorktreeReset: () => undefined,
-      onSubmit: () => undefined,
-    })
-
-    const event = { preventDefault: () => undefined } as unknown as Event
-
-    await submit.handleSubmit(event)
-
-    expect(enabledAutoAccept).toEqual([{ sessionID: "session-1", directory: "/repo/worktree-a" }])
-  })
-
   test("promotes drafts using the selected project's server", async () => {
     search = { draftId: "draft-1" }
     const submit = createPromptSubmit({
@@ -323,7 +284,6 @@ describe("prompt submit worktree selection", () => {
       info: () => undefined,
       imageAttachments: () => [],
       commentCount: () => 0,
-      autoAccept: () => false,
       mode: () => "normal",
       working: () => false,
       editor: () => undefined,
@@ -352,7 +312,6 @@ describe("prompt submit worktree selection", () => {
       info: () => ({ id: "session-1" }),
       imageAttachments: () => [],
       commentCount: () => 0,
-      autoAccept: () => false,
       mode: () => "normal",
       working: () => false,
       editor: () => undefined,
@@ -384,7 +343,6 @@ describe("prompt submit worktree selection", () => {
       info: () => undefined,
       imageAttachments: () => [],
       commentCount: () => 0,
-      autoAccept: () => false,
       mode: () => "normal",
       working: () => false,
       editor: () => undefined,
