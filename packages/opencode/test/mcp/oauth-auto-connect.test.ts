@@ -236,7 +236,7 @@ mcpTest.instance("state() returns existing state when one is saved", () =>
 )
 
 mcpTest.instance(
-  "reauthentication starts fresh while preserving dynamic client registration",
+  "reauthentication starts fresh with a new dynamic client registration",
   () =>
     Effect.gen(function* () {
       yield* Effect.addFinalizer(() => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore))
@@ -257,7 +257,7 @@ mcpTest.instance(
       expect(first.authorizationUrl).toContain("https://auth.example.com/authorize")
       expect(first.oauthState).not.toBe("stale-state")
       expect(afterFirst?.tokens).toBeUndefined()
-      expect(afterFirst?.clientInfo).toEqual(clientInfo)
+      expect(afterFirst?.clientInfo).toBeUndefined()
       expect(afterFirst?.serverUrl).toBe(url)
       expect(afterFirst?.codeVerifier).toBe("test-verifier")
       expect(afterFirst?.oauthState).toBe(first.oauthState)

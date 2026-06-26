@@ -147,6 +147,7 @@ export const layer = Layer.effect(
         if (!current) return undefined
         const entry = { ...current }
         delete entry.tokens
+        delete entry.clientInfo
         delete entry.codeVerifier
         delete entry.oauthState
         return { ...data, [mcpName]: entry }
