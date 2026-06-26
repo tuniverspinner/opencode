@@ -12,7 +12,6 @@ import type { CommandContext } from "@opentui/keymap"
 import { createEffect, createMemo, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import path from "path"
-import { fileURLToPath } from "url"
 import { Filesystem } from "@/util/filesystem"
 import { useLocal } from "@tui/context/local"
 import { tint, useTheme } from "@tui/context/theme"
@@ -25,7 +24,6 @@ import { useSync } from "@tui/context/sync"
 import { useEvent } from "@tui/context/event"
 import { editorSelectionKey, useEditorContext, type EditorSelection } from "@tui/context/editor"
 import { MessageID, PartID } from "@/session/schema"
-import { promptOffsetWidth } from "@/cli/cmd/prompt-display"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { usePromptHistory, type PromptInfo } from "./history"
 import { computePromptTraits } from "./traits"
@@ -37,19 +35,18 @@ import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import * as Editor from "@tui/util/editor"
 import { useExit } from "../../context/exit"
 import * as Clipboard from "../../util/clipboard"
-import type { AssistantMessage, FilePart, UserMessage } from "@cyf-ai/sdk/v2"
+import type { AssistantMessage, UserMessage } from "@cyf-ai/sdk/v2"
 import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
 import { errorMessage } from "@/util/error"
-import { formatDuration } from "@/util/format"
 import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
-import { createFadeIn } from "../../util/signal"
+
 import { DialogSkill } from "../dialog-skill"
 import { DialogWorkspaceUnavailable } from "../dialog-workspace-unavailable"
 import { useArgs } from "@tui/context/args"
@@ -58,6 +55,9 @@ import { CYF_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useOpe
 import { useTuiConfig } from "../../context/tui-config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
+import { RetryStatus } from "../inhbricg-cmpx/retry-status"
+import { AgentityBar } from "../inhbricg-cmpx/agentitybar"
+import { usePasteCluster } from "../inhbricg-cmpx/paste-cluster"
 
 export type PromptProps = {
   sessionID?: string
@@ -88,8 +88,6 @@ const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 })
-
-const DRAFT_RETENTION_MIN_CHARS = 20
 
 function randomIndex(count: number) {
   if (count <= 0) return 0
@@ -154,7 +152,6 @@ export function Prompt(props: PromptProps) {
   const dimensions = useTerminalDimensions()
   const { theme, syntax } = useTheme()
   const kv = useKV()
-  const animationsEnabled = createMemo(() => kv.get("animations_enabled", true))
   const list = createMemo(() => props.placeholders?.normal ?? [])
   const shell = createMemo(() => props.placeholders?.shell ?? [])
   const fileContextEnabled = createMemo(() => kv.get("file_context_enabled", true))
@@ -193,9 +190,6 @@ export function Prompt(props: PromptProps) {
   const workspace = usePromptWorkspace(props.sessionID)
   const move = usePromptMove({ projectID: project.project, sessionID: () => props.sessionID })
   const [cursorVersion, setCursorVersion] = createSignal(0)
-  const currentProviderLabel = createMemo(() => local.model.parsed().provider)
-  const hasRightContent = createMemo(() => Boolean(props.right))
-
   function promptModelWarning() {
     toast.show({
       variant: "warning",
@@ -280,6 +274,18 @@ export function Prompt(props: PromptProps) {
     interrupt: 0,
   })
 
+  const paste = usePasteCluster({
+    getInput: () => input,
+    store,
+    setStore,
+    history,
+    pasteStyleId,
+    partTypeId: () => promptPartTypeId,
+    pasteSummaryEnabled: () => kv.get("paste_summary_enabled", !sync.data.config.experimental?.disable_paste_summary),
+    filesystem: Filesystem,
+    requestRender: () => renderer.requestRender(),
+  })
+
   createEffect(
     on(
       () => props.sessionID,
@@ -322,7 +328,7 @@ export function Prompt(props: PromptProps) {
         category: "Prompt",
         hidden: true,
         run: () => {
-          clearPrompt()
+          paste.clearPrompt()
           dialog.clear()
         },
       },
@@ -359,7 +365,7 @@ export function Prompt(props: PromptProps) {
           ctx.event.stopPropagation()
           const content = await Clipboard.read()
           if (content?.mime.startsWith("image/")) {
-            await pasteAttachment({
+            await paste.pasteAttachment({
               filename: "clipboard",
               mime: content.mime,
               content: content.data,
@@ -367,7 +373,7 @@ export function Prompt(props: PromptProps) {
             return
           }
           if (content?.mime === "text/plain") {
-            await pasteInputText(content.data)
+            await paste.pasteInputText(content.data)
           }
         },
       },
@@ -1137,164 +1143,6 @@ export function Prompt(props: PromptProps) {
   }
   const exit = useExit()
 
-  function pasteText(text: string, virtualText: string) {
-    const currentOffset = input.cursorOffset
-    const extmarkStart = currentOffset
-    const extmarkEnd = extmarkStart + promptOffsetWidth(virtualText)
-
-    input.insertText(virtualText + " ")
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push({
-          type: "text" as const,
-          text,
-          source: {
-            text: {
-              start: extmarkStart,
-              end: extmarkEnd,
-              value: virtualText,
-            },
-          },
-        })
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-  }
-
-  async function pasteInputText(text: string) {
-    const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const pastedContent = normalizedText.trim()
-    const filepath = iife(() => {
-      const raw = pastedContent.replace(/^['"]+|['"]+$/g, "")
-      if (raw.startsWith("file://")) {
-        try {
-          return fileURLToPath(raw)
-        } catch {}
-      }
-      if (process.platform === "win32") return raw
-      return raw.replace(/\\(.)/g, "$1")
-    })
-    const isUrl = /^(https?):\/\//.test(filepath)
-    if (!isUrl) {
-      try {
-        const mime = await Filesystem.mimeType(filepath)
-        const filename = path.basename(filepath)
-        if (mime === "image/svg+xml") {
-          const content = await Filesystem.readText(filepath).catch(() => {})
-          if (content) {
-            pasteText(content, `[SVG: ${filename ?? "image"}]`)
-            return
-          }
-        }
-        if (mime.startsWith("image/") || mime === "application/pdf") {
-          const content = await Filesystem.readArrayBuffer(filepath)
-            .then((buffer) => Buffer.from(buffer).toString("base64"))
-            .catch(() => {})
-          if (content) {
-            await pasteAttachment({
-              filename,
-              filepath,
-              mime,
-              content,
-            })
-            return
-          }
-        }
-      } catch {}
-    }
-
-    const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-    if (
-      (lineCount >= 3 || pastedContent.length > 150) &&
-      kv.get("paste_summary_enabled", !sync.data.config.experimental?.disable_paste_summary)
-    ) {
-      pasteText(pastedContent, `[Pasted ~${lineCount} lines]`)
-      return
-    }
-
-    input.insertText(normalizedText)
-
-    setTimeout(() => {
-      if (!input || input.isDestroyed) return
-      input.getLayoutNode().markDirty()
-      renderer.requestRender()
-    }, 0)
-  }
-
-  async function pasteAttachment(file: { filename?: string; filepath?: string; content: string; mime: string }) {
-    const currentOffset = input.cursorOffset
-    const extmarkStart = currentOffset
-    const pdf = file.mime === "application/pdf"
-    const count = store.prompt.parts.filter((x) => {
-      if (x.type !== "file") return false
-      if (pdf) return x.mime === "application/pdf"
-      return x.mime.startsWith("image/")
-    }).length
-    const virtualText = pdf ? `[PDF ${count + 1}]` : `[Image ${count + 1}]`
-    const extmarkEnd = extmarkStart + virtualText.length
-    const textToInsert = virtualText + " "
-
-    input.insertText(textToInsert)
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    const part: Omit<FilePart, "id" | "messageID" | "sessionID"> = {
-      type: "file" as const,
-      mime: file.mime,
-      filename: file.filename,
-      url: `data:${file.mime};base64,${file.content}`,
-      source: {
-        type: "file",
-        path: file.filepath ?? file.filename ?? "",
-        text: {
-          start: extmarkStart,
-          end: extmarkEnd,
-          value: virtualText,
-        },
-      },
-    }
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push(part)
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-    return
-  }
-
-  function clearPrompt() {
-    if (store.prompt.input.trim().length >= DRAFT_RETENTION_MIN_CHARS || store.prompt.parts.length > 0) {
-      history.append({
-        ...store.prompt,
-        mode: store.mode,
-      })
-    }
-    input.clear()
-    input.extmarks.clear()
-    setStore("prompt", {
-      input: "",
-      parts: [],
-    })
-    setStore("extmarkToPartIndex", new Map())
-  }
-
   const highlight = createMemo(() => {
     if (leader()) return theme.border
     if (store.mode === "shell") return theme.primary
@@ -1303,20 +1151,7 @@ export function Prompt(props: PromptProps) {
     return local.agent.color(agent.name)
   })
 
-  const showVariant = createMemo(() => {
-    const variants = local.model.variant.list()
-    if (variants.length === 0) return false
-    const current = local.model.variant.current()
-    return !!current
-  })
-
-  const agentMetaAlpha = createFadeIn(() => !!local.agent.current(), animationsEnabled)
-  const modelMetaAlpha = createFadeIn(() => !!local.agent.current() && store.mode === "normal", animationsEnabled)
-  const variantMetaAlpha = createFadeIn(
-    () => !!local.agent.current() && store.mode === "normal" && showVariant(),
-    animationsEnabled,
-  )
-  const borderHighlight = createMemo(() => tint(theme.border, highlight(), agentMetaAlpha()))
+  const borderHighlight = createMemo(() => tint(theme.border, highlight(), local.agent.current() ? 1 : 1))
 
   const placeholderText = createMemo(() => {
     if (props.showPlaceholder === false) return undefined
@@ -1354,7 +1189,6 @@ export function Prompt(props: PromptProps) {
   })
   const maxHeight = createMemo(() => tuiConfig.prompt?.max_height ?? Math.max(6, Math.floor(dimensions().height / 3)))
   const moveLabelWidth = createMemo(() => Math.max(12, Math.min(44, dimensions().width - 48)))
-
   return (
     <>
       <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
@@ -1426,7 +1260,7 @@ export function Prompt(props: PromptProps) {
                 // default paste unless we suppress it first and handle insertion ourselves.
                 event.preventDefault()
 
-                await pasteInputText(normalizedText)
+                await paste.pasteInputText(normalizedText)
               }}
               ref={(r: TextareaRenderable) => {
                 input = r
@@ -1449,44 +1283,7 @@ export function Prompt(props: PromptProps) {
               cursorColor={props.disabled ? theme.backgroundElement : theme.text}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
-              <box flexDirection="row" gap={1}>
-                <Show when={local.agent.current()} fallback={<box height={1} />}>
-                  {(agent) => (
-                    <>
-                      <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
-                      </text>
-                      <Show when={store.mode === "normal"}>
-                        <box flexDirection="row" gap={1}>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
-                          <text
-                            flexShrink={0}
-                            fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
-                          >
-                            {local.model.parsed().model}
-                          </text>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>
-                          <Show when={showVariant()}>
-                            <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>·</text>
-                            <text>
-                              <span style={{ fg: fadeColor(theme.warning, variantMetaAlpha()), bold: true }}>
-                                {local.model.variant.current()}
-                              </span>
-                            </text>
-                          </Show>
-                        </box>
-                      </Show>
-                    </>
-                  )}
-                </Show>
-              </box>
-              <Show when={hasRightContent()}>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  {props.right}
-                </box>
-              </Show>
-            </box>
+            <AgentityBar mode={store.mode} right={props.right} />
           </box>
         </box>
         <box
@@ -1531,62 +1328,11 @@ export function Prompt(props: PromptProps) {
                     </Show>
                   </box>
                   <box flexDirection="row" gap={1} flexShrink={0}>
-                    {(() => {
-                      const retry = createMemo(() => {
-                        const s = status()
-                        if (s.type !== "retry") return
-                        return s
-                      })
-                      const message = createMemo(() => {
-                        const r = retry()
-                        if (!r) return
-                        if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                          return "gemini is way too hot right now"
-                        if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-                        return r.message
-                      })
-                      const isTruncated = createMemo(() => {
-                        const r = retry()
-                        if (!r) return false
-                        return r.message.length > 120
-                      })
-                      const [seconds, setSeconds] = createSignal(0)
-                      onMount(() => {
-                        const timer = setInterval(() => {
-                          const next = retry()?.next
-                          if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-                        }, 1000)
-
-                        onCleanup(() => {
-                          clearInterval(timer)
-                        })
-                      })
-                      const handleMessageClick = () => {
-                        const r = retry()
-                        if (!r) return
-                        if (isTruncated()) {
-                          void DialogAlert.show(dialog, "Retry Error", r.message)
-                        }
-                      }
-
-                      const retryText = () => {
-                        const r = retry()
-                        if (!r) return ""
-                        const baseMessage = message()
-                        const truncatedHint = isTruncated() ? " (click to expand)" : ""
-                        const duration = formatDuration(seconds())
-                        const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
-                        return baseMessage + truncatedHint + retryInfo
-                      }
-
-                      return (
-                        <Show when={retry()}>
-                          <box onMouseUp={handleMessageClick}>
-                            <text fg={theme.error}>{retryText()}</text>
-                          </box>
-                        </Show>
-                      )
-                    })()}
+                    <RetryStatus
+                      status={status}
+                      errorColor={theme.error}
+                      onExpand={(msg) => DialogAlert.show(dialog, "Retry Error", msg)}
+                    />
                   </box>
                 </box>
                 <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
