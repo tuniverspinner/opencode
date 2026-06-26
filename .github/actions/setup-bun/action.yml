@@ -1,6 +1,7 @@
 name: "Setup Bun"
 description: "Resolve the channel Bun toolchain, install it, and install dependencies"
 inputs:
+  # Canary cross-compiles cannot fetch target runtimes from npm under Bun's base version, so pre-cache them.
   cross-compile:
     description: "Pre-cache matching Bun runtimes for all compile targets"
     required: false
